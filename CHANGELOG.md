@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [26.7.0] - 2026-07-27
 ### Added
 - Show Legacy, Next and FFmpeg versions in **Troubleshooting** > **General**
 
@@ -3302,7 +3304,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Initial release to facilitate testing outside of Docker.
 
 
-[Unreleased]: https://github.com/ErsatzTV/legacy/compare/v26.6.0...HEAD
+[Unreleased]: https://github.com/ErsatzTV/legacy/compare/v26.7.0...HEAD
+[26.7.0]: https://github.com/ErsatzTV/legacy/compare/v26.6.0...v26.7.0
 [26.6.0]: https://github.com/ErsatzTV/legacy/compare/v26.5.1...v26.6.0
 [26.5.1]: https://github.com/ErsatzTV/legacy/compare/v26.5.0...v26.5.1
 [26.5.0]: https://github.com/ErsatzTV/legacy/compare/v26.4.0...v26.5.0

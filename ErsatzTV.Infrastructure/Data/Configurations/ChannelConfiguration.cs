@@ -53,5 +53,18 @@ public class ChannelConfiguration : IEntityTypeConfiguration<Channel>
             .HasForeignKey(i => i.MirrorSourceChannelId)
             .OnDelete(DeleteBehavior.SetNull)
             .IsRequired(false);
+
+        builder.HasMany(c => c.GraphicsElements)
+            .WithMany(m => m.Channels)
+            .UsingEntity<ChannelGraphicsElement>(
+                j => j.HasOne(ci => ci.GraphicsElement)
+                    .WithMany(mi => mi.ChannelGraphicsElements)
+                    .HasForeignKey(ci => ci.GraphicsElementId)
+                    .OnDelete(DeleteBehavior.Cascade),
+                j => j.HasOne(ci => ci.Channel)
+                    .WithMany(c => c.ChannelGraphicsElements)
+                    .HasForeignKey(ci => ci.ChannelId)
+                    .OnDelete(DeleteBehavior.Cascade),
+                j => j.HasKey(ci => new { ci.ChannelId, ci.GraphicsElementId }));
     }
 }

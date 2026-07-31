@@ -127,6 +127,18 @@ public class ResourceExtractorService : BackgroundService
             "mpegts.yml",
             FileSystemLayout.DefaultMpegTsScriptFolder,
             stoppingToken);
+
+        await ExtractGraphicsElementResource(
+            assembly,
+            "_lower-third.yml",
+            FileSystemLayout.GraphicsElementsHtmlTemplatesFolder,
+            stoppingToken);
+
+        await ExtractGraphicsElementResource(
+            assembly,
+            "_up-next.yml",
+            FileSystemLayout.GraphicsElementsHtmlTemplatesFolder,
+            stoppingToken);
     }
 
     private static async Task ExtractResource(Assembly assembly, string name, CancellationToken cancellationToken)
@@ -193,6 +205,28 @@ public class ResourceExtractorService : BackgroundService
         if (resource != null)
         {
             await using FileStream fs = File.Create(Path.Combine(targetFolder, name));
+            await resource.CopyToAsync(fs, cancellationToken);
+        }
+    }
+
+    private static async Task ExtractGraphicsElementResource(
+        Assembly assembly,
+        string name,
+        string targetFolder,
+        CancellationToken cancellationToken)
+    {
+        string targetPath = Path.Combine(targetFolder, name);
+        if (File.Exists(targetPath))
+        {
+            return;
+        }
+
+        await using Stream resource =
+            assembly.GetManifestResourceStream($"ErsatzTV.Resources.Templates.GraphicsElements.{name}");
+        if (resource != null)
+        {
+            Directory.CreateDirectory(targetFolder);
+            await using FileStream fs = File.Create(targetPath);
             await resource.CopyToAsync(fs, cancellationToken);
         }
     }

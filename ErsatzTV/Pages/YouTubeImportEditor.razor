@@ -1,0 +1,320 @@
+@page "/media/sources/youtube/import"
+@using ErsatzTV.Application.YouTube
+@using ErsatzTV.Core.YouTube
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@implements IDisposable
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<MudForm Style="max-height: 100%">
+    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+        <MudButton Class="ml-8"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Variant="Variant.Outlined"
+                   OnClick="@(_ => NavigationManager.NavigateTo("media/sources/youtube"))">
+            Back
+        </MudButton>
+        @if (_result is not null)
+        {
+            <MudButton Class="ml-4"
+                       StartIcon="@Icons.Material.Filled.Download"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Disabled="@_isImporting"
+                       OnClick="@(_ => Import())">
+                @($"Import {_result.Videos.Count} Video{(_result.Videos.Count == 1 ? "" : "s")}")
+            </MudButton>
+            <MudButton Class="ml-2" Disabled="@_isImporting" OnClick="@(_ => Cancel())">
+                Cancel
+            </MudButton>
+        }
+    </MudPaper>
+    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
+            <MudText Typo="Typo.h5" Class="mb-2">Import From YouTube</MudText>
+            <MudDivider Class="mb-6"/>
+
+            <MudStack Row="true" Class="mb-6" AlignItems="AlignItems.Center">
+                <MudTextField @bind-Value="_input"
+                              Immediate="true"
+                              Disabled="@_isSearching"
+                              Label="Search or URL"
+                              HelperText="Search for videos, or paste a video, playlist or channel URL"
+                              OnKeyDown="@(e => { if (e.Key == "Enter") { _ = Search(); } })"
+                              Style="min-width: 420px"/>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Search"
+                           Disabled="@(_isSearching || string.IsNullOrWhiteSpace(_input))"
+                           OnClick="@(_ => Search())">
+                    Search
+                </MudButton>
+            </MudStack>
+
+            @if (_isSearching)
+            {
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-6">
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small"/>
+                    <MudText>Fetching metadata with yt-dlp; large channels can take a few minutes...</MudText>
+                </MudStack>
+            }
+
+            @if (_isImporting)
+            {
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-6">
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small"/>
+                    <MudText>Importing metadata...</MudText>
+                </MudStack>
+            }
+
+            @if (_result is not null)
+            {
+                <MudPaper Class="pa-6 mb-4">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+                        <MudMenu>
+                            <ActivatorContent>
+                                <MudTooltip Text="Click to change the icon">
+                                    @if (!string.IsNullOrWhiteSpace(_iconUrl))
+                                    {
+                                        <MudImage Src="@_iconUrl" Width="160" Height="90" ObjectFit="ObjectFit.Cover" Style="border-radius: 6px; cursor: pointer"/>
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.SmartDisplay" Style="font-size: 64px; cursor: pointer"/>
+                                    }
+                                </MudTooltip>
+                            </ActivatorContent>
+                            <ChildContent>
+                                <MudMenuItem OnClick="@(() => SetIcon(_result.ThumbnailUrl))">Use default thumbnail</MudMenuItem>
+                                <MudMenuItem OnClick="@(() => SetIcon(_result.Videos.Select(v => v.ThumbnailUrl).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t))))">Use first video thumbnail</MudMenuItem>
+                                <MudMenuItem OnClick="@(() => _showCustomIcon = true)">Enter custom URL...</MudMenuItem>
+                            </ChildContent>
+                        </MudMenu>
+                        <div class="ml-4" style="flex: 1">
+                            <MudTextField @bind-Value="_name" Label="Name" HelperText="Used for the playlist, smart collection and channel station"/>
+                            <MudText Typo="Typo.body2" Style="opacity: 0.7" Class="mt-1">
+                                @_result.Kind
+                                @if (!string.IsNullOrWhiteSpace(_result.ChannelName))
+                                {
+                                    <span> &bull; @_result.ChannelName</span>
+                                }
+                                <span> &bull; @_result.Videos.Count videos</span>
+                            </MudText>
+                        </div>
+                    </MudStack>
+
+                    @if (_showCustomIcon)
+                    {
+                        <MudTextField @bind-Value="_iconUrl" Label="Icon URL" Class="mb-4"/>
+                    }
+
+                    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-2">
+                        <div class="d-flex">
+                            <MudText>Automatically Re-Sync</MudText>
+                        </div>
+                        <MudCheckBox @bind-Value="_autoSync" Dense="true"/>
+                    </MudStack>
+                    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-2">
+                        <div class="d-flex">
+                            <MudText>Re-Sync Interval</MudText>
+                        </div>
+                        <MudSelect @bind-Value="_syncIntervalHours" Disabled="@(_autoSync == false)"
+                                   HelperText="Checks YouTube for added or removed videos and updates the import automatically">
+                            <MudSelectItem Value="6">Every 6 hours</MudSelectItem>
+                            <MudSelectItem Value="12">Every 12 hours</MudSelectItem>
+                            <MudSelectItem Value="24">Every day</MudSelectItem>
+                            <MudSelectItem Value="72">Every 3 days</MudSelectItem>
+                            <MudSelectItem Value="168">Every week</MudSelectItem>
+                        </MudSelect>
+                    </MudStack>
+                    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-2">
+                        <div class="d-flex">
+                            <MudText>Create Channel Station</MudText>
+                        </div>
+                        <MudCheckBox @bind-Value="_createStation" Dense="true"/>
+                    </MudStack>
+                    @if (_createStation)
+                    {
+                        <MudText Typo="Typo.body2" Style="opacity: 0.7" Class="mb-2">
+                            Creates a smart collection, channel, schedule and playout that plays these videos
+                            in order from oldest to newest.
+                        </MudText>
+                    }
+                </MudPaper>
+
+                <MudPaper Class="pa-2 mb-16" Style="height: 540px; overflow-y: auto">
+                    <Virtualize Items="_result.Videos" Context="video" ItemSize="78">
+                        <div style="display: flex; align-items: center; padding: 6px 8px; border-bottom: 1px solid rgba(128,128,128,0.15)">
+                            @if (!string.IsNullOrWhiteSpace(video.ThumbnailUrl))
+                            {
+                                <img src="@video.ThumbnailUrl" alt="" loading="lazy"
+                                     style="width: 118px; height: 66px; object-fit: cover; border-radius: 4px; flex-shrink: 0"/>
+                            }
+                            else
+                            {
+                                <div style="width: 118px; height: 66px; flex-shrink: 0"></div>
+                            }
+                            <div class="ml-4" style="min-width: 0">
+                                <MudText Style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">@video.Title</MudText>
+                                <MudText Typo="Typo.body2" Style="opacity: 0.7">
+                                    @if (!string.IsNullOrWhiteSpace(video.ChannelName))
+                                    {
+                                        <span>@video.ChannelName &bull; </span>
+                                    }
+                                    @FormatDuration(video.DurationSeconds)
+                                    @if (video.UploadDate.HasValue)
+                                    {
+                                        <span> &bull; @video.UploadDate.Value.ToString("yyyy-MM-dd")</span>
+                                    }
+                                </MudText>
+                            </div>
+                        </div>
+                    </Virtualize>
+                </MudPaper>
+            }
+        </MudContainer>
+    </div>
+</MudForm>
+
+@code {
+    private CancellationTokenSource _cts;
+
+    private string _input;
+    private bool _isSearching;
+    private bool _isImporting;
+
+    private YtDlpQueryResult _result;
+    private string _name;
+    private string _iconUrl;
+    private bool _showCustomIcon;
+    private bool _autoSync = true;
+    private int _syncIntervalHours = 24;
+    private bool _createStation;
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    protected override void OnParametersSet()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+    }
+
+    private static string FormatDuration(double? durationSeconds)
+    {
+        if (durationSeconds is null or <= 0)
+        {
+            return "unknown length";
+        }
+
+        var duration = TimeSpan.FromSeconds(durationSeconds.Value);
+        return duration.TotalHours >= 1 ? duration.ToString(@"h\:mm\:ss") : duration.ToString(@"m\:ss");
+    }
+
+    private void SetIcon(string url)
+    {
+        _showCustomIcon = false;
+        if (!string.IsNullOrWhiteSpace(url))
+        {
+            _iconUrl = url;
+        }
+    }
+
+    private async Task Search()
+    {
+        if (_isSearching || string.IsNullOrWhiteSpace(_input))
+        {
+            return;
+        }
+
+        _isSearching = true;
+        _result = null;
+        StateHasChanged();
+
+        try
+        {
+            Either<BaseError, YtDlpQueryResult> maybeResult = await Mediator.Send(new QueryYouTube(_input), _cts.Token);
+            maybeResult.Match(
+                result =>
+                {
+                    if (result.Videos.Count == 0)
+                    {
+                        Snackbar.Add("No videos were found for that query", Severity.Warning);
+                    }
+                    else
+                    {
+                        _result = result;
+                        _name = result.Title;
+
+                        // default icon: playlist/channel thumbnail, fallback first video thumbnail
+                        _iconUrl = !string.IsNullOrWhiteSpace(result.ThumbnailUrl)
+                            ? result.ThumbnailUrl
+                            : result.Videos.Select(v => v.ThumbnailUrl).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t));
+                    }
+                },
+                error => Snackbar.Add($"Unable to query YouTube: {error.Value}", Severity.Error));
+        }
+        catch (OperationCanceledException)
+        {
+            // do nothing
+        }
+        finally
+        {
+            _isSearching = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Cancel()
+    {
+        _result = null;
+        _name = null;
+        _iconUrl = null;
+        _showCustomIcon = false;
+    }
+
+    private async Task Import()
+    {
+        if (_result is null || _isImporting)
+        {
+            return;
+        }
+
+        _isImporting = true;
+        StateHasChanged();
+
+        try
+        {
+            Either<BaseError, YouTubeImportResult> maybeResult = await Mediator.Send(
+                new ImportYouTube(_name, _result, _iconUrl, _autoSync, _syncIntervalHours, _createStation),
+                _cts.Token);
+
+            maybeResult.Match(
+                result =>
+                {
+                    Snackbar.Add(
+                        result.ChannelId.HasValue
+                            ? $"Imported {result.Manifest.VideoCount} videos and created channel station {result.Manifest.Name}"
+                            : $"Imported {result.Manifest.VideoCount} videos",
+                        Severity.Success);
+
+                    NavigationManager.NavigateTo("media/sources/youtube");
+                },
+                error => Snackbar.Add($"Unable to import: {error.Value}", Severity.Error));
+        }
+        catch (OperationCanceledException)
+        {
+            // do nothing
+        }
+        finally
+        {
+            _isImporting = false;
+        }
+    }
+
+}

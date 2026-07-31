@@ -1,4 +1,5 @@
-﻿using System.IO.Abstractions;
+﻿using System.Globalization;
+using System.IO.Abstractions;
 using ErsatzTV.Core;
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Extensions;
@@ -525,6 +526,20 @@ public class LocalMetadataProvider : ILocalMetadataProvider
                 Year = definition.Year
             };
 
+            if (DateTime.TryParse(definition.ReleaseDate, CultureInfo.InvariantCulture, out DateTime releaseDate))
+            {
+                result.ReleaseDate = releaseDate;
+                result.Year ??= releaseDate.Year;
+            }
+
+            foreach (string tag in Optional(definition.Tags).Flatten().Distinct())
+            {
+                if (!string.IsNullOrWhiteSpace(tag))
+                {
+                    result.Tags.Add(new Tag { Name = tag });
+                }
+            }
+
             foreach (RemoteStreamMetadata fallbackMetadata in maybeFallbackMetadata)
             {
                 // title is not required in remote stream definition; use fallback title if missing
@@ -538,7 +553,10 @@ public class LocalMetadataProvider : ILocalMetadataProvider
                 // preserve folder tagging
                 foreach (Tag tag in fallbackMetadata.Tags)
                 {
-                    result.Tags.Add(tag);
+                    if (result.Tags.All(t => !string.Equals(t.Name, tag.Name, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        result.Tags.Add(tag);
+                    }
                 }
             }
 

@@ -109,6 +109,8 @@
         <EmbeddedResource Include="Resources\empty.sqlite3" />
         <EmbeddedResource Include="Resources\test.avs" />
         <EmbeddedResource Include="Resources\Templates\_remoteStream.sbntxt" />
+        <EmbeddedResource Include="Resources\Templates\GraphicsElements\_lower-third.yml" />
+        <EmbeddedResource Include="Resources\Templates\GraphicsElements\_up-next.yml" />
         <EmbeddedResource Update="Locals\Shared\MainLayout.resx">
           <Generator>ResXFileCodeGenerator</Generator>
           <LastGenOutput>MainLayout.Designer.cs</LastGenOutput>

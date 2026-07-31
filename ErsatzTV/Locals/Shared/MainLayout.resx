@@ -27,6 +27,9 @@
     <data name="ButtonWatermarks" xml:space="preserve">
         <value>Watermarks</value>
     </data>
+    <data name="ButtonOverlays" xml:space="preserve">
+        <value>Overlays</value>
+    </data>
     <data name="ButtonMediaSources" xml:space="preserve">
         <value>Media Sources</value>
     </data>
@@ -50,6 +53,9 @@
     </data>
     <data name="ButtonMediaSourcesPlex" xml:space="preserve">
         <value>Plex</value>
+    </data>
+    <data name="ButtonMediaSourcesYouTube" xml:space="preserve">
+        <value>YouTube</value>
     </data>
     <data name="ButtonMediaLibraries" xml:space="preserve">
         <value>Libraries</value>

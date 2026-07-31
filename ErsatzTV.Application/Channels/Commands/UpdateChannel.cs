@@ -34,4 +34,5 @@ public record UpdateChannel(
     ChannelTranscodeMode TranscodeMode,
     ChannelIdleBehavior IdleBehavior,
     bool IsEnabled,
-    bool ShowInEpg) : IRequest<Either<BaseError, ChannelViewModel>>;
+    bool ShowInEpg,
+    List<int> GraphicsElementIds) : IRequest<Either<BaseError, ChannelViewModel>>;

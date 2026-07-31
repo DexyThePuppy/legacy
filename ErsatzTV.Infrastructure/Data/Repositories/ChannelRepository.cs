@@ -13,6 +13,7 @@ public class ChannelRepository(IDbContextFactory<TvContext> dbContextFactory) : 
             .AsNoTracking()
             .Include(c => c.Artwork)
             .Include(c => c.Watermark)
+            .Include(c => c.ChannelGraphicsElements)
             .OrderBy(c => c.Id)
             .SingleOrDefaultAsync(c => c.Id == id)
             .Map(Optional);

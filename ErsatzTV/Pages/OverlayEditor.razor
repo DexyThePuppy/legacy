@@ -1,0 +1,355 @@
+@page "/overlays/add"
+@page "/overlays/{Id:int}/edit"
+@using ErsatzTV.Application.Graphics
+@using ErsatzTV.FFmpeg.State
+@implements IDisposable
+@inject NavigationManager NavigationManager
+@inject ILogger<OverlayEditor> Logger
+@inject ISnackbar Snackbar
+@inject IMediator Mediator
+
+<MudForm @ref="_form" Style="max-height: 100%">
+    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" StartIcon="@Icons.Material.Filled.Save" OnClick="@(_ => HandleSubmitAsync())">
+            Save Overlay
+        </MudButton>
+        <MudButton Variant="Variant.Text" Class="ml-4" Href="overlays">
+            Cancel
+        </MudButton>
+        @if (_canUseForm)
+        {
+            <MudSwitch T="bool" Class="ml-6" Color="Color.Secondary" @bind-Value="_rawMode" Label="Edit raw YAML"/>
+        }
+    </MudPaper>
+    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8" Style="margin-bottom: 288px">
+            <MudText Typo="Typo.h5" Class="mb-2">@(IsEdit ? "Edit Overlay" : "Add Overlay")</MudText>
+            <MudDivider Class="mb-6"/>
+            @if (!_canUseForm)
+            {
+                <MudAlert Severity="Severity.Info" Class="mb-6">
+                    This template could not be parsed for form editing, so only raw YAML editing is available.
+                </MudAlert>
+            }
+            @if (_canUseForm && !_rawMode)
+            {
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudText>Name</MudText>
+                    </div>
+                    <MudTextField @bind-Value="_model.Name" For="@(() => _model.Name)" Required="true" RequiredError="Overlay name is required!"/>
+                </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudText>Location</MudText>
+                    </div>
+                    <MudSelect @bind-Value="_model.Location">
+                        @foreach (WatermarkLocation location in Enum.GetValues<WatermarkLocation>())
+                        {
+                            <MudSelectItem Value="@location">@location</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudText>Horizontal Margin %</MudText>
+                    </div>
+                    <MudNumericField @bind-Value="_model.HorizontalMarginPercent" Min="0" Max="50"/>
+                </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudText>Vertical Margin %</MudText>
+                    </div>
+                    <MudNumericField @bind-Value="_model.VerticalMarginPercent" Min="0" Max="50"/>
+                </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudText>Width %</MudText>
+                    </div>
+                    <MudNumericField @bind-Value="_model.WidthPercent" Min="1" Max="100"/>
+                </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudText>Height %</MudText>
+                    </div>
+                    <MudNumericField @bind-Value="_model.HeightPercent" Min="1" Max="100"/>
+                </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudText>Opacity %</MudText>
+                    </div>
+                    <MudNumericField @bind-Value="_model.OpacityPercent" Min="0" Max="100"/>
+                </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudTooltip Text="Optional NCalc expression, e.g. time_of_day(...) - overrides Opacity % when set">
+                            <MudText>Opacity Expression</MudText>
+                        </MudTooltip>
+                    </div>
+                    <MudTextField @bind-Value="_model.OpacityExpression"/>
+                </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudText>Z-Index</MudText>
+                    </div>
+                    <MudNumericField @bind-Value="_model.ZIndex"/>
+                </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudTooltip Text="How often the HTML page is captured; lower values use less CPU">
+                            <MudText>Capture FPS</MudText>
+                        </MudTooltip>
+                    </div>
+                    <MudNumericField T="double?" @bind-Value="_model.CaptureFps" Min="0" Max="60" Clearable="true"/>
+                </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudTooltip Text="Number of EPG entries available to the template via the Epg variable">
+                            <MudText>EPG Entries</MudText>
+                        </MudTooltip>
+                    </div>
+                    <MudNumericField @bind-Value="_model.EpgEntries" Min="0" Max="10"/>
+                </MudStack>
+                <MudText Typo="Typo.h6" Class="mt-8 mb-2">Triggers</MudText>
+                <MudText Typo="Typo.body2" Class="mb-4">
+                    Control when the overlay appears during each item. Leave everything empty to show the overlay for the entire item.
+                    Use "Start Seconds From End" together with "Duration Seconds" to show upcoming video info near the end (e.g. from 30 to 10 seconds before the end).
+                </MudText>
+                <MudDivider Class="mb-6"/>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudTooltip Text="Show the overlay this many seconds after the item starts">
+                            <MudText>Start Seconds</MudText>
+                        </MudTooltip>
+                    </div>
+                    <MudNumericField T="double?" @bind-Value="_model.StartSeconds" Min="0" Clearable="true"/>
+                </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudTooltip Text="Show the overlay this many seconds before the item ends (overrides Start Seconds)">
+                            <MudText>Start Seconds From End</MudText>
+                        </MudTooltip>
+                    </div>
+                    <MudNumericField T="double?" @bind-Value="_model.StartSecondsFromEnd" Min="0" Clearable="true"/>
+                </MudStack>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                    <div class="d-flex">
+                        <MudTooltip Text="Hide the overlay after this many seconds; leave empty to show until the item ends">
+                            <MudText>Duration Seconds</MudText>
+                        </MudTooltip>
+                    </div>
+                    <MudNumericField T="double?" @bind-Value="_model.DurationSeconds" Min="0" Clearable="true"/>
+                </MudStack>
+                <MudText Typo="Typo.h6" Class="mt-8 mb-2">HTML</MudText>
+                <MudText Typo="Typo.body2" Class="mb-4">
+                    Variables: <code>{{ MediaItem_Title }}</code>, <code>{{ MediaItem_Plot }}</code>, <code>{{ MediaItem_DurationSeconds }}</code>,
+                    <code>{{ MediaItem_RemainingSeconds }}</code>, <code>{{ Next_Title }}</code>, <code>{{ Next_Start }}</code>,
+                    <code>{{ Next_StartsInSeconds }}</code>, <code>{{ Channel_Number }}</code> and more.
+                    CSS animations and JavaScript timers run live in the overlay.
+                </MudText>
+                <MudDivider Class="mb-6"/>
+                <MudTextField T="string"
+                              @bind-Value="_model.Html"
+                              Lines="24"
+                              Variant="Variant.Outlined"
+                              Style="font-family: monospace; font-size: 13px"/>
+            }
+            else
+            {
+                <MudTextField T="string"
+                              @bind-Value="_model.RawContent"
+                              Lines="30"
+                              Variant="Variant.Outlined"
+                              Style="font-family: monospace; font-size: 13px"/>
+            }
+        </MudContainer>
+    </div>
+</MudForm>
+
+@code {
+    private CancellationTokenSource _cts;
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    private OverlayEditViewModel _model = new();
+    private MudForm _form;
+    private bool _rawMode;
+    private bool _canUseForm = true;
+
+    private bool IsEdit => Id.HasValue;
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        try
+        {
+            if (Id.HasValue)
+            {
+                Option<OverlayEditViewModel> maybeOverlay = await Mediator.Send(new GetOverlayById(Id.Value), token);
+                maybeOverlay.Match(
+                    overlay =>
+                    {
+                        _model = overlay;
+                        _canUseForm = overlay.IsParsed;
+                        _rawMode = !overlay.IsParsed;
+                    },
+                    () => NavigationManager.NavigateTo("404"));
+            }
+            else
+            {
+                _model = new OverlayEditViewModel
+                {
+                    Name = "New Overlay",
+                    Location = WatermarkLocation.BottomLeft,
+                    HorizontalMarginPercent = 3,
+                    VerticalMarginPercent = 5,
+                    WidthPercent = 45,
+                    HeightPercent = 20,
+                    OpacityPercent = 100,
+                    ZIndex = 20,
+                    CaptureFps = 15,
+                    StartSecondsFromEnd = 30,
+                    DurationSeconds = 20,
+                    IsParsed = true,
+                    Html = DefaultHtml
+                };
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // do nothing
+        }
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        await _form.ValidateAsync();
+        if (_canUseForm && !_rawMode && string.IsNullOrWhiteSpace(_model.Name))
+        {
+            Snackbar.Add("Overlay name is required", Severity.Error);
+            return;
+        }
+
+        try
+        {
+            var token = _cts?.Token ?? CancellationToken.None;
+
+            var request = new SaveOverlay(
+                IsEdit ? Id : null,
+                _model.Name,
+                _model.Html,
+                _model.Location,
+                _model.HorizontalMarginPercent,
+                _model.VerticalMarginPercent,
+                _model.WidthPercent,
+                _model.HeightPercent,
+                _model.OpacityPercent,
+                _model.OpacityExpression,
+                _model.ZIndex,
+                _model.CaptureFps,
+                _model.EpgEntries,
+                _model.StartSeconds,
+                _model.DurationSeconds,
+                _model.StartSecondsFromEnd,
+                _canUseForm && !_rawMode ? null : _model.RawContent);
+
+            Either<BaseError, int> result = await Mediator.Send(request, token);
+            result.Match(
+                _ => NavigationManager.NavigateTo("overlays"),
+                error =>
+                {
+                    Snackbar.Add(error.Value, Severity.Error);
+                    Logger.LogError("Unexpected error saving overlay: {Error}", error.Value);
+                });
+        }
+        catch (OperationCanceledException)
+        {
+            // do nothing
+        }
+    }
+
+    private const string DefaultHtml =
+        """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            html, body {
+              margin: 0;
+              width: 100%;
+              height: 100%;
+              background: transparent;
+              overflow: hidden;
+              font-family: "Segoe UI", system-ui, sans-serif;
+            }
+            .up-next {
+              position: absolute;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              padding: 1rem 1.3rem;
+              color: #fff;
+              background: linear-gradient(90deg, rgba(0,0,0,0.85), rgba(0,0,0,0.35));
+              border-left: 6px solid #4ac1e8;
+              box-sizing: border-box;
+              animation: slide-in 0.6s ease-out both;
+            }
+            .label {
+              font-size: 0.95rem;
+              font-weight: 600;
+              letter-spacing: 0.12em;
+              text-transform: uppercase;
+              color: #4ac1e8;
+            }
+            .title {
+              margin-top: 0.25rem;
+              font-size: 1.7rem;
+              font-weight: 700;
+              line-height: 1.15;
+              text-shadow: 0 2px 8px rgba(0,0,0,0.55);
+            }
+            .countdown {
+              margin-top: 0.3rem;
+              font-size: 1rem;
+              opacity: 0.85;
+            }
+            @keyframes slide-in {
+              from { transform: translateX(-110%); opacity: 0; }
+              to { transform: translateX(0); opacity: 1; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="up-next">
+            <div class="label">Up Next</div>
+            <div class="title">{{ Next_Title }}</div>
+            <div class="countdown">starts in <span id="secs"></span></div>
+          </div>
+          <script>
+            // countdown timer driven by the render-time value of Next_StartsInSeconds
+            let remaining = Math.round({{ Next_StartsInSeconds ?? 0 }});
+            const el = document.getElementById('secs');
+            function tick() {
+              el.textContent = remaining > 60
+                ? Math.ceil(remaining / 60) + ' min'
+                : remaining + 's';
+              if (remaining > 0) { remaining--; setTimeout(tick, 1000); }
+            }
+            tick();
+          </script>
+        </body>
+        </html>
+        """;
+
+}

@@ -1,0 +1,140 @@
+@page "/overlays"
+@using ErsatzTV.Application.Graphics
+@using ErsatzTV.Core.Domain
+@implements IDisposable
+@inject IDialogService Dialog
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudForm Style="max-height: 100%">
+    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" StartIcon="@Icons.Material.Filled.Add" Href="overlays/add">
+            Add Overlay
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Class="ml-4" StartIcon="@Icons.Material.Filled.Refresh" OnClick="@(_ => RefreshOverlaysAsync())">
+            Rescan Templates
+        </MudButton>
+        <MudButton Variant="Variant.Text" Class="ml-4" Href="watermarks">
+            Image Watermarks (Legacy)
+        </MudButton>
+    </MudPaper>
+    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
+            <MudText Typo="Typo.h5" Class="mb-2">Overlays</MudText>
+            <MudText Typo="Typo.body2" Class="mb-2">
+                Overlays are live HTML templates that are rendered over channel content.
+                They support template variables like <code>MediaItem_Title</code>, <code>Next_Title</code> and <code>Next_StartsInSeconds</code>,
+                and triggers like <code>start_seconds_from_end</code> to show upcoming video info near the end of an item.
+                Channels can use multiple overlays at the same time.
+            </MudText>
+            <MudDivider Class="mb-6"/>
+            <MudTable Hover="true" Items="_overlays">
+                <ColGroup>
+                    <MudHidden Breakpoint="Breakpoint.Xs">
+                        <col/>
+                        <col/>
+                        <col/>
+                        <col style="width: 180px;"/>
+                    </MudHidden>
+                </ColGroup>
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh>File</MudTh>
+                    <MudTh/>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Name">@context.Name</MudTd>
+                    <MudTd DataLabel="Type">
+                        <MudChip T="string" Size="Size.Small" Color="@KindColor(context.Kind)">@context.Kind</MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="File">@context.FileName</MudTd>
+                    <MudTd>
+                        <div style="align-items: center; display: flex;">
+                            <MudTooltip Text="Edit Overlay">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                               Href="@($"overlays/{context.Id}/edit")">
+                                </MudIconButton>
+                            </MudTooltip>
+                            <MudTooltip Text="Delete Overlay">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               OnClick="@(_ => DeleteOverlayAsync(context))">
+                                </MudIconButton>
+                            </MudTooltip>
+                        </div>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudContainer>
+    </div>
+</MudForm>
+
+@code {
+    private CancellationTokenSource _cts;
+
+    private List<GraphicsElementViewModel> _overlays = [];
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        try
+        {
+            _overlays = await Mediator.Send(new GetAllGraphicsElements(), token);
+        }
+        catch (OperationCanceledException)
+        {
+            // do nothing
+        }
+    }
+
+    private static Color KindColor(GraphicsElementKind kind) =>
+        kind switch
+        {
+            GraphicsElementKind.Html => Color.Primary,
+            GraphicsElementKind.Image => Color.Secondary,
+            GraphicsElementKind.Text => Color.Info,
+            GraphicsElementKind.Motion => Color.Warning,
+            GraphicsElementKind.Script => Color.Tertiary,
+            GraphicsElementKind.Subtitle => Color.Surface,
+            _ => Color.Default
+        };
+
+    private async Task RefreshOverlaysAsync()
+    {
+        await Mediator.Send(new RefreshGraphicsElements(), _cts.Token);
+        _overlays = await Mediator.Send(new GetAllGraphicsElements(), _cts.Token);
+        Snackbar.Add("Overlay templates have been rescanned", Severity.Success);
+    }
+
+    private async Task DeleteOverlayAsync(GraphicsElementViewModel overlay)
+    {
+        var parameters = new DialogParameters { { "EntityType", "overlay" }, { "EntityName", overlay.Name } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+
+        IDialogReference dialog = await Dialog.ShowAsync<DeleteDialog>("Delete Overlay", parameters, options);
+        DialogResult result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Either<BaseError, Unit> deleteResult =
+                await Mediator.Send(new DeleteGraphicsElement(overlay.Id), _cts.Token);
+
+            foreach (BaseError error in deleteResult.LeftToSeq())
+            {
+                Snackbar.Add(error.Value, Severity.Error);
+            }
+
+            _overlays = await Mediator.Send(new GetAllGraphicsElements(), _cts.Token);
+        }
+    }
+
+}

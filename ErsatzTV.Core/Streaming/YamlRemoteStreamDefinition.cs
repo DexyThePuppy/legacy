@@ -30,4 +30,18 @@ public class YamlRemoteStreamDefinition
 
     [YamlMember(Alias = "content_rating", ApplyNamingConventions = false)]
     public string ContentRating { get; set; }
+
+    // when set (e.g. "yt-dlp"), playback will prefer a locally downloaded copy
+    // and fall back to live streaming through the downloader
+    [YamlMember(Alias = "downloader", ApplyNamingConventions = false)]
+    public string Downloader { get; set; }
+
+    [YamlMember(Alias = "release_date", ApplyNamingConventions = false)]
+    public string ReleaseDate { get; set; }
+
+    [YamlMember(Alias = "tags", ApplyNamingConventions = false)]
+    public List<string> Tags { get; set; }
+
+    [YamlMember(Alias = "thumbnail", ApplyNamingConventions = false)]
+    public string Thumbnail { get; set; }
 }

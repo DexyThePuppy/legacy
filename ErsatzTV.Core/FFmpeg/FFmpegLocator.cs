@@ -72,8 +72,14 @@ public class FFmpegLocator(IConfigElementRepository configElementRepository) : I
             RedirectStandardOutput = true
         };
         p.Start();
-        string path = (await p.StandardOutput.ReadToEndAsync()).Trim();
+        string output = await p.StandardOutput.ReadToEndAsync();
         await p.WaitForExitAsync();
-        return p.ExitCode == 0 ? Some(path) : None;
+
+        // `where` can return multiple matches (one per line); use the first
+        string path = output
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault(File.Exists);
+
+        return p.ExitCode == 0 && path is not null ? Some(path) : None;
     }
 }

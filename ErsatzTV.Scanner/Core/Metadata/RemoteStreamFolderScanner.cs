@@ -179,8 +179,8 @@ public class RemoteStreamFolderScanner : LocalFolderScanner, IRemoteStreamFolder
                     Either<BaseError, MediaItemScanResult<RemoteStream>> maybeVideo = await _remoteStreamRepository
                         .GetOrAdd(libraryPath, knownFolder, file, cancellationToken)
                         .BindT(video => ParseRemoteStreamDefinition(video, deserializer, cancellationToken))
-                        .BindT(video => UpdateMetadata(video, cancellationToken))
-                        .BindT(video => UpdateStatistics(video, ffmpegPath, ffprobePath))
+                        .BindT(video => UpdateMetadataWithDefinition(video, cancellationToken))
+                        .BindT(video => UpdateOrSynthesizeStatistics(video, ffmpegPath, ffprobePath))
                         .BindT(video => UpdateLibraryFolderId(video, knownFolder))
                         .BindT(video => UpdateThumbnail(video, cancellationToken))
                         //.BindT(UpdateSubtitles)
@@ -336,7 +336,7 @@ public class RemoteStreamFolderScanner : LocalFolderScanner, IRemoteStreamFolder
         }
     }
 
-    private async Task<Either<BaseError, MediaItemScanResult<RemoteStream>>> UpdateMetadata(
+    private async Task<Either<BaseError, RemoteStreamWithDefinition>> UpdateMetadataWithDefinition(
         RemoteStreamWithDefinition result,
         CancellationToken cancellationToken)
     {
@@ -360,6 +360,82 @@ public class RemoteStreamFolderScanner : LocalFolderScanner, IRemoteStreamFolder
 
                 _logger.LogDebug("Refreshing {Attribute} for {Path}", "Metadata", path);
                 if (await _localMetadataProvider.RefreshMetadata(remoteStream, result.Definition, cancellationToken))
+                {
+                    result.Result.IsUpdated = true;
+                }
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            return BaseError.New(ex.ToString());
+        }
+    }
+
+    private async Task<Either<BaseError, MediaItemScanResult<RemoteStream>>> UpdateOrSynthesizeStatistics(
+        RemoteStreamWithDefinition result,
+        string ffmpegPath,
+        string ffprobePath)
+    {
+        // downloader-managed items (e.g. yt-dlp) must not be probed remotely during scan;
+        // statistics are synthesized here and refreshed from the real file after download
+        if (string.IsNullOrWhiteSpace(result.Definition.Downloader))
+        {
+            return await UpdateStatistics(result.Result, ffmpegPath, ffprobePath);
+        }
+
+        try
+        {
+            RemoteStream remoteStream = result.Result.Item;
+            MediaVersion version = remoteStream.GetHeadVersion();
+
+            if (version.Streams.Count == 0)
+            {
+                string path = version.MediaFiles.Head().Path;
+
+                TimeSpan duration = TimeSpan.TryParse(result.Definition.Duration, out TimeSpan parsed)
+                    ? parsed
+                    : TimeSpan.Zero;
+
+                var synthesized = new MediaVersion
+                {
+                    Name = "Main",
+                    Duration = duration,
+                    Width = 1920,
+                    Height = 1080,
+                    SampleAspectRatio = "1:1",
+                    DisplayAspectRatio = "16:9",
+                    RFrameRate = "30/1",
+                    VideoScanKind = VideoScanKind.Progressive,
+                    DateAdded = DateTime.UtcNow,
+                    DateUpdated = _localFileSystem.GetLastWriteTime(path),
+                    Streams =
+                    [
+                        new MediaStream
+                        {
+                            Index = 0,
+                            MediaStreamKind = MediaStreamKind.Video,
+                            Codec = "h264",
+                            Profile = "high",
+                            PixelFormat = "yuv420p",
+                            Default = true
+                        },
+                        new MediaStream
+                        {
+                            Index = 1,
+                            MediaStreamKind = MediaStreamKind.Audio,
+                            Codec = "aac",
+                            Channels = 2,
+                            Default = true
+                        }
+                    ],
+                    Chapters = []
+                };
+
+                _logger.LogDebug("Synthesizing statistics for downloader-managed remote stream at {Path}", path);
+
+                if (await _metadataRepository.UpdateStatistics(remoteStream, synthesized))
                 {
                     result.Result.IsUpdated = true;
                 }

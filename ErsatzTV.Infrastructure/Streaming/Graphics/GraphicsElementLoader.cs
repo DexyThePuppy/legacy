@@ -147,6 +147,25 @@ public partial class GraphicsElementLoader(
 
                         break;
                     }
+                    case GraphicsElementKind.Html:
+                    {
+                        Option<HtmlGraphicsElement> maybeElement = await LoadHtml(
+                            reference.GraphicsElement.Path,
+                            templateVariables);
+                        if (maybeElement.IsNone)
+                        {
+                            logger.LogWarning(
+                                "Failed to load HTML graphics element from file {Path}; ignoring",
+                                reference.GraphicsElement.Path);
+                        }
+
+                        foreach (HtmlGraphicsElement element in maybeElement)
+                        {
+                            context.Elements.Add(new HtmlElementDataContext(element));
+                        }
+
+                        break;
+                    }
                     default:
                         logger.LogInformation(
                             "Ignoring unsupported graphics element kind {Kind}",
@@ -206,7 +225,8 @@ public partial class GraphicsElementLoader(
 
         IEnumerable<PlayoutItemGraphicsElement> elementsWithEpg = elements.Where(e =>
             e.GraphicsElement.Kind is GraphicsElementKind.Text or GraphicsElementKind.Subtitle
-                or GraphicsElementKind.Motion or GraphicsElementKind.Script or GraphicsElementKind.Image);
+                or GraphicsElementKind.Motion or GraphicsElementKind.Script or GraphicsElementKind.Image
+                or GraphicsElementKind.Html);
 
         foreach (var reference in elementsWithEpg)
         {
@@ -250,6 +270,9 @@ public partial class GraphicsElementLoader(
     private Task<Option<ScriptGraphicsElement>> LoadScript(string fileName, Dictionary<string, object> variables) =>
         GetTemplatedYaml(fileName, variables).BindT(FromYaml<ScriptGraphicsElement>);
 
+    private Task<Option<HtmlGraphicsElement>> LoadHtml(string fileName, Dictionary<string, object> variables) =>
+        GetTemplatedYaml(fileName, variables).BindT(FromYaml<HtmlGraphicsElement>);
+
     private async Task<Dictionary<string, object>> InitTemplateVariables(
         GraphicsEngineContext context,
         int epgEntries,
@@ -263,9 +286,14 @@ public partial class GraphicsElementLoader(
             [FFmpegProfileTemplateDataKey.RFrameRate] = context.FrameRate.RFrameRate,
             [FFmpegProfileTemplateDataKey.FrameRate] = context.FrameRate.ParsedFrameRate,
             [ChannelTemplateDataKey.ChannelStartTime] = context.ChannelStartTime,
+            [ChannelTemplateDataKey.Number] = context.ChannelNumber,
             [MediaItemTemplateDataKey.StreamSeek] = context.Seek,
             [MediaItemTemplateDataKey.Start] = context.ContentStartTime,
-            [MediaItemTemplateDataKey.Stop] = context.ContentStartTime + context.Duration
+            [MediaItemTemplateDataKey.Stop] = context.ContentStartTime + context.Duration,
+            [MediaItemTemplateDataKey.DurationSeconds] = context.ContentTotalDuration.TotalSeconds,
+            [MediaItemTemplateDataKey.StreamSeekSeconds] = context.Seek.TotalSeconds,
+            [MediaItemTemplateDataKey.RemainingSeconds] =
+                Math.Max(0, (context.ContentTotalDuration - context.Seek).TotalSeconds)
         };
 
         // media item variables
@@ -275,23 +303,73 @@ public partial class GraphicsElementLoader(
         {
             foreach (KeyValuePair<string, object> variable in templateData)
             {
-                result.Add(variable.Key, variable.Value);
+                result[variable.Key] = variable.Value;
             }
         }
 
-        // epg variables
+        // epg variables (always fetch at least two entries so Next_* variables are available)
         DateTimeOffset startTime = context.ContentStartTime + context.Seek;
         Option<Dictionary<string, object>> maybeEpgData =
-            await templateDataRepository.GetEpgTemplateData(context.ChannelNumber, startTime, epgEntries);
+            await templateDataRepository.GetEpgTemplateData(context.ChannelNumber, startTime, Math.Max(epgEntries, 2));
         foreach (Dictionary<string, object> templateData in maybeEpgData)
         {
             foreach (KeyValuePair<string, object> variable in templateData)
             {
-                result.Add(variable.Key, variable.Value);
+                result[variable.Key] = variable.Value;
             }
         }
 
+        AddNextEpgEntryVariables(result, startTime);
+
+        // trim epg entries back to the requested count so existing templates render unchanged
+        if (result.TryGetValue(EpgTemplateDataKey.Epg, out object epg) &&
+            epg is System.Collections.IEnumerable epgEnumerable)
+        {
+            result[EpgTemplateDataKey.Epg] = epgEnumerable.Cast<object>().Take(epgEntries).ToList();
+        }
+
         return result;
+    }
+
+    private static void AddNextEpgEntryVariables(Dictionary<string, object> result, DateTimeOffset startTime)
+    {
+        if (!result.TryGetValue(EpgTemplateDataKey.Epg, out object epgValue) ||
+            epgValue is not System.Collections.IEnumerable enumerable)
+        {
+            return;
+        }
+
+        var entries = enumerable.Cast<object>().ToList();
+        if (entries.Count < 2)
+        {
+            return;
+        }
+
+        switch (entries[1])
+        {
+            case EpgProgrammeTemplateData typed:
+                result[EpgTemplateDataKey.NextTitle] = typed.Title;
+                result[EpgTemplateDataKey.NextSubTitle] = typed.SubTitle;
+                result[EpgTemplateDataKey.NextDescription] = typed.Description;
+                result[EpgTemplateDataKey.NextStart] = typed.Start;
+                result[EpgTemplateDataKey.NextStop] = typed.Stop;
+                result[EpgTemplateDataKey.NextStartsInSeconds] =
+                    Math.Max(0, (typed.Start - startTime).TotalSeconds);
+                break;
+            case Dictionary<string, object> dict:
+                result[EpgTemplateDataKey.NextTitle] = dict.GetValueOrDefault("Title");
+                result[EpgTemplateDataKey.NextSubTitle] = dict.GetValueOrDefault("SubTitle");
+                result[EpgTemplateDataKey.NextDescription] = dict.GetValueOrDefault("Description");
+                result[EpgTemplateDataKey.NextStart] = dict.GetValueOrDefault("Start");
+                result[EpgTemplateDataKey.NextStop] = dict.GetValueOrDefault("Stop");
+                if (dict.GetValueOrDefault("Start") is DateTimeOffset nextStart)
+                {
+                    result[EpgTemplateDataKey.NextStartsInSeconds] =
+                        Math.Max(0, (nextStart - startTime).TotalSeconds);
+                }
+
+                break;
+        }
     }
 
     private async Task<Option<TemplatedYaml>> GetTemplatedYaml(string fileName, Dictionary<string, object> variables)

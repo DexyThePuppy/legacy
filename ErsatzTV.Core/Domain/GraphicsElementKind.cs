@@ -6,5 +6,6 @@ public enum GraphicsElementKind
     Text = 1,
     Subtitle = 2,
     Motion = 3,
-    Script = 4
+    Script = 4,
+    Html = 5
 }

@@ -57,6 +57,12 @@ public class ConfigElementKey
     public static ConfigElementKey PlayoutScriptedScheduleTimeoutSeconds =>
         new("playout.scripted_schedule_timeout_seconds");
 
+    public static ConfigElementKey YtDlpPath => new("ytdlp.path");
+    public static ConfigElementKey YtDlpDenoPath => new("ytdlp.deno_path");
+    public static ConfigElementKey YtDlpFormat => new("ytdlp.format");
+    public static ConfigElementKey YtDlpExtraArgs => new("ytdlp.extra_args");
+    public static ConfigElementKey YtDlpCacheMaxGb => new("ytdlp.cache_max_gb");
+
     public static ConfigElementKey XmltvTimeZone => new("xmltv.time_zone");
     public static ConfigElementKey XmltvDaysToBuild => new("xmltv.days_to_build");
     public static ConfigElementKey XmltvBlockBehavior => new("xmltv.block_behavior");

@@ -131,6 +131,11 @@ public class CreateChannelHandler(
                 channel.FallbackFillerId = id;
             }
 
+            channel.ChannelGraphicsElements = (request.GraphicsElementIds ?? [])
+                .Distinct()
+                .Map(id => new ChannelGraphicsElement { GraphicsElementId = id })
+                .ToList();
+
             return channel;
         });
 

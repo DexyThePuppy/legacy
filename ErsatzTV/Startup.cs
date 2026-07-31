@@ -34,6 +34,7 @@ using ErsatzTV.Core.Interfaces.Search;
 using ErsatzTV.Core.Interfaces.Streaming;
 using ErsatzTV.Core.Interfaces.Trakt;
 using ErsatzTV.Core.Interfaces.Troubleshooting;
+using ErsatzTV.Core.Interfaces.YouTube;
 using ErsatzTV.Core.Jellyfin;
 using ErsatzTV.Core.Metadata;
 using ErsatzTV.Core.Plex;
@@ -71,7 +72,9 @@ using ErsatzTV.Infrastructure.Search;
 using ErsatzTV.Infrastructure.Sqlite.Data;
 using ErsatzTV.Infrastructure.Streaming;
 using ErsatzTV.Infrastructure.Streaming.Graphics;
+using ErsatzTV.Infrastructure.Streaming.Graphics.Html;
 using ErsatzTV.Infrastructure.Trakt;
+using ErsatzTV.Infrastructure.YouTube;
 using ErsatzTV.Serialization;
 using ErsatzTV.Services;
 using ErsatzTV.Services.RunOnce;
@@ -360,6 +363,8 @@ public class Startup
             FileSystemLayout.GraphicsElementsScriptTemplatesFolder,
             FileSystemLayout.GraphicsElementsSubtitleTemplatesFolder,
             FileSystemLayout.GraphicsElementsMotionTemplatesFolder,
+            FileSystemLayout.GraphicsElementsHtmlTemplatesFolder,
+            FileSystemLayout.ChromiumCacheFolder,
             FileSystemLayout.ScriptsFolder,
             FileSystemLayout.MultiEpisodeShuffleTemplatesFolder,
             FileSystemLayout.AudioStreamSelectorScriptsFolder,
@@ -708,6 +713,7 @@ public class Startup
         services.AddSingleton<ITroubleshootingNotifier, TroubleshootingNotifier>();
         services.AddSingleton<CustomFontMapper>();
         services.AddSingleton<GraphicsEngineFonts>();
+        services.AddSingleton<IHtmlBrowserService, HtmlBrowserService>();
         services.AddSingleton(Program.InMemoryLogService);
 
         if (SearchHelper.IsElasticSearchEnabled)
@@ -739,6 +745,7 @@ public class Startup
         AddChannel<IFFmpegWorkerRequest>(services);
         AddChannel<ISearchIndexBackgroundServiceRequest>(services);
         AddChannel<IScannerBackgroundServiceRequest>(services);
+        AddChannel<IYtDlpWorkerRequest>(services);
 
         services.AddScoped<IMacOsConfigFolderHealthCheck, MacOsConfigFolderHealthCheck>();
         services.AddScoped<IFFmpegVersionHealthCheck, FFmpegVersionHealthCheck>();
@@ -778,6 +785,9 @@ public class Startup
         services.AddScoped<IFFmpegLocator, FFmpegLocator>();
         services.AddScoped<IFallbackMetadataProvider, FallbackMetadataProvider>();
         services.AddScoped<ILocalStatisticsProvider, LocalStatisticsProvider>();
+        services.AddScoped<IYtDlpService, YtDlpService>();
+        services.AddScoped<IYouTubeImportService, YouTubeImportService>();
+        services.AddScoped<IYouTubePlaybackResolver, YouTubePlaybackResolver>();
         services.AddScoped<IExternalJsonPlayoutItemProvider, ExternalJsonPlayoutItemProvider>();
         services.AddScoped<IPlayoutBuilder, PlayoutBuilder>();
         services.AddScoped<IBlockPlayoutBuilder, BlockPlayoutBuilder>();
@@ -877,6 +887,8 @@ public class Startup
         services.AddHostedService<SchedulerService>();
         services.AddHostedService<FFmpegWorkerService>();
         services.AddHostedService<SearchIndexService>();
+        services.AddHostedService<YtDlpWorkerService>();
+        services.AddHostedService<YouTubeSyncService>();
     }
 
     private static void AddChannel<TMessageType>(IServiceCollection services)

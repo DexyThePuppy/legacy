@@ -20,6 +20,8 @@ public class Channel
     public double? SlugSeconds { get; set; }
     public int? WatermarkId { get; set; }
     public ChannelWatermark Watermark { get; set; }
+    public List<GraphicsElement> GraphicsElements { get; set; }
+    public List<ChannelGraphicsElement> ChannelGraphicsElements { get; set; }
     public int? FallbackFillerId { get; set; }
     public FillerPreset FallbackFiller { get; set; }
     public StreamingEngine StreamingEngine { get; set; }

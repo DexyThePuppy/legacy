@@ -38,7 +38,8 @@ internal static class Mapper
             channel.TranscodeMode,
             channel.IdleBehavior,
             channel.IsEnabled,
-            channel.ShowInEpg);
+            channel.ShowInEpg,
+            (channel.ChannelGraphicsElements ?? []).Map(cge => cge.GraphicsElementId).ToList());
 
     internal static ChannelResponseModel ProjectToResponseModel(Channel channel) =>
         new(

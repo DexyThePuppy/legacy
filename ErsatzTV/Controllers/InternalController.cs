@@ -14,11 +14,16 @@ using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.FFmpeg;
 using ErsatzTV.Core.Interfaces.Scheduling;
 using ErsatzTV.Core.Interfaces.Streaming;
+using ErsatzTV.Core.Interfaces.YouTube;
+using ErsatzTV.Core.YouTube;
 using ErsatzTV.Extensions;
 using ErsatzTV.FFmpeg;
 using ErsatzTV.Infrastructure.Data;
+using ErsatzTV.Infrastructure.Extensions;
 using ErsatzTV.Infrastructure.Scheduling;
+using ErsatzTV.Infrastructure.YouTube;
 using Flurl;
+using LanguageExt.UnsafeValueAccess;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +40,8 @@ public class InternalController : StreamingControllerBase
     private readonly IDbContextFactory<TvContext> _dbContextFactory;
     private readonly IDynamicPlayoutItemService _dynamicPlayoutItemService;
     private readonly IPlayoutItemConverter _playoutItemConverter;
+    private readonly IYtDlpService _ytDlpService;
+    private readonly IYouTubePlaybackResolver _youTubePlaybackResolver;
 
     public InternalController(
         IGraphicsEngine graphicsEngine,
@@ -42,6 +49,8 @@ public class InternalController : StreamingControllerBase
         IDbContextFactory<TvContext> dbContextFactory,
         IDynamicPlayoutItemService dynamicPlayoutItemService,
         IPlayoutItemConverter playoutItemConverter,
+        IYtDlpService ytDlpService,
+        IYouTubePlaybackResolver youTubePlaybackResolver,
         ILogger<InternalController> logger)
         : base(graphicsEngine, logger)
     {
@@ -49,6 +58,8 @@ public class InternalController : StreamingControllerBase
         _dbContextFactory = dbContextFactory;
         _dynamicPlayoutItemService = dynamicPlayoutItemService;
         _playoutItemConverter = playoutItemConverter;
+        _ytDlpService = ytDlpService;
+        _youTubePlaybackResolver = youTubePlaybackResolver;
         _logger = logger;
     }
 
@@ -129,6 +140,146 @@ public class InternalController : StreamingControllerBase
                     return new FileStreamResult(process.StandardOutput.BaseStream, "video/mp2t");
                 }
             }
+        }
+
+        return NotFound();
+    }
+
+    [HttpGet("ffmpeg/ytdlp/{remoteStreamId:int}")]
+    public async Task<IActionResult> GetYtDlpStream(int remoteStreamId, CancellationToken cancellationToken)
+    {
+        await using TvContext dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        Option<RemoteStream> maybeRemoteStream = await dbContext.RemoteStreams
+            .AsNoTracking()
+            .Include(rs => rs.MediaVersions)
+            .ThenInclude(mv => mv.MediaFiles)
+            .SelectOneAsync(rs => rs.Id, rs => rs.Id == remoteStreamId, cancellationToken);
+
+        foreach (RemoteStream remoteStream in maybeRemoteStream)
+        {
+            // serve from cache when a download completed after this url was handed out
+            foreach (string videoId in _youTubePlaybackResolver.VideoIdForRemoteStream(remoteStream))
+            {
+                foreach (string cached in _ytDlpService.GetCachedFile(videoId))
+                {
+                    return PhysicalFile(cached, "video/mp4", enableRangeProcessing: true);
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(remoteStream.Url))
+            {
+                return NotFound();
+            }
+
+            Option<string> maybeYtDlpPath = await _ytDlpService.LocateYtDlp(cancellationToken);
+            Option<string> maybeFFmpegPath = await dbContext.ConfigElements.GetValue<string>(
+                ConfigElementKey.FFmpegPath,
+                cancellationToken);
+
+            if (maybeYtDlpPath.IsNone || maybeFFmpegPath.IsNone)
+            {
+                _logger.LogWarning("Unable to stream via yt-dlp; yt-dlp or ffmpeg path is not configured");
+                return NotFound();
+            }
+
+            YtDlpSettings settings = await _ytDlpService.GetSettings(cancellationToken);
+
+            var ytDlpProcess = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = maybeYtDlpPath.ValueUnsafe(),
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = false,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            ytDlpProcess.StartInfo.ArgumentList.Add("-f");
+            ytDlpProcess.StartInfo.ArgumentList.Add(settings.Format);
+            ytDlpProcess.StartInfo.ArgumentList.Add("--no-warnings");
+            ytDlpProcess.StartInfo.ArgumentList.Add("--no-playlist");
+            ytDlpProcess.StartInfo.ArgumentList.Add("--quiet");
+            ytDlpProcess.StartInfo.ArgumentList.Add("-o");
+            ytDlpProcess.StartInfo.ArgumentList.Add("-");
+            ytDlpProcess.StartInfo.ArgumentList.Add(remoteStream.Url);
+
+            // ensure deno is available for youtube signature solving
+            Option<string> maybeDenoPath = await _ytDlpService.LocateDeno(cancellationToken);
+            foreach (string denoPath in maybeDenoPath)
+            {
+                string denoDir = Path.GetDirectoryName(denoPath) ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(denoDir))
+                {
+                    string pathVariable = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+                    ytDlpProcess.StartInfo.Environment["PATH"] =
+                        $"{denoDir}{System.IO.Path.PathSeparator}{pathVariable}";
+                }
+            }
+
+            var ffmpegProcess = new FFmpegProcess
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = maybeFFmpegPath.ValueUnsafe(),
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = false,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            foreach (string arg in new[]
+                     {
+                         "-hide_banner", "-nostats", "-loglevel", "error",
+                         "-i", "pipe:0",
+                         "-c", "copy",
+                         "-f", "mpegts", "pipe:1"
+                     })
+            {
+                ffmpegProcess.StartInfo.ArgumentList.Add(arg);
+            }
+
+            HttpContext.Response.RegisterForDispose(ytDlpProcess);
+            HttpContext.Response.RegisterForDispose(ffmpegProcess);
+
+            _logger.LogDebug("Live streaming remote stream {Id} via yt-dlp", remoteStreamId);
+
+            ytDlpProcess.Start();
+            ffmpegProcess.Start();
+
+            // pump yt-dlp stdout into ffmpeg stdin in the background
+            _ = Task.Run(
+                async () =>
+                {
+                    try
+                    {
+                        await ytDlpProcess.StandardOutput.BaseStream.CopyToAsync(
+                            ffmpegProcess.StandardInput.BaseStream,
+                            cancellationToken);
+                    }
+                    catch (Exception)
+                    {
+                        // ignored - the client disconnected or a process exited
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            ffmpegProcess.StandardInput.Close();
+                        }
+                        catch (Exception)
+                        {
+                            // ignored
+                        }
+                    }
+                },
+                cancellationToken);
+
+            return new FileStreamResult(ffmpegProcess.StandardOutput.BaseStream, "video/mp2t");
         }
 
         return NotFound();

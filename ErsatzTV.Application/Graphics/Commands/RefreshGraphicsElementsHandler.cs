@@ -143,6 +143,26 @@ public class RefreshGraphicsElementsHandler(
             await dbContext.AddAsync(graphicsElement, cancellationToken);
         }
 
+        // add new html elements
+        var newHtmlPaths = localFileSystem.ListFiles(FileSystemLayout.GraphicsElementsHtmlTemplatesFolder, "*.yml", "*.yaml")
+            .Where(f => allExisting.All(e => e.Path != f))
+            .ToList();
+
+        foreach (string path in newHtmlPaths)
+        {
+            logger.LogDebug("Adding new graphics element from file {File}", path);
+
+            var graphicsElement = new GraphicsElement
+            {
+                Path = path,
+                Kind = GraphicsElementKind.Html
+            };
+
+            await TryRefreshName(graphicsElement, cancellationToken);
+
+            await dbContext.AddAsync(graphicsElement, cancellationToken);
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 

@@ -16,6 +16,7 @@ public class GraphicsEngine(
     ITempFilePool tempFilePool,
     IConfigElementRepository configElementRepository,
     ILocalStatisticsProvider localStatisticsProvider,
+    IHtmlBrowserService htmlBrowserService,
     ILogger<GraphicsEngine> logger)
     : IGraphicsEngine
 {
@@ -65,6 +66,14 @@ public class GraphicsEngine(
 
                 case ScriptElementDataContext scriptElementDataContext:
                     elements.Add(new ScriptElement(scriptElementDataContext.ScriptElement, logger));
+                    break;
+
+                case HtmlElementDataContext htmlElementDataContext:
+                    elements.Add(
+                        new Html.HtmlElement(
+                            htmlBrowserService,
+                            htmlElementDataContext.HtmlElement,
+                            logger));
                     break;
 
                 case SubtitleElementDataContext subtitleElementContext:

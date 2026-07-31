@@ -396,6 +396,21 @@ namespace ErsatzTV.Infrastructure.Sqlite.Migrations
                     b.ToTable("Channel", (string)null);
                 });
 
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ChannelGraphicsElement", b =>
+                {
+                    b.Property<int>("ChannelId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("GraphicsElementId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ChannelId", "GraphicsElementId");
+
+                    b.HasIndex("GraphicsElementId");
+
+                    b.ToTable("ChannelGraphicsElement");
+                });
+
             modelBuilder.Entity("ErsatzTV.Core.Domain.ChannelWatermark", b =>
                 {
                     b.Property<int>("Id")
@@ -4392,6 +4407,25 @@ namespace ErsatzTV.Infrastructure.Sqlite.Migrations
                     b.Navigation("Watermark");
                 });
 
+            modelBuilder.Entity("ErsatzTV.Core.Domain.ChannelGraphicsElement", b =>
+                {
+                    b.HasOne("ErsatzTV.Core.Domain.Channel", "Channel")
+                        .WithMany("ChannelGraphicsElements")
+                        .HasForeignKey("ChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ErsatzTV.Core.Domain.GraphicsElement", "GraphicsElement")
+                        .WithMany("ChannelGraphicsElements")
+                        .HasForeignKey("GraphicsElementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Channel");
+
+                    b.Navigation("GraphicsElement");
+                });
+
             modelBuilder.Entity("ErsatzTV.Core.Domain.CollectionItem", b =>
                 {
                     b.HasOne("ErsatzTV.Core.Domain.Collection", "Collection")
@@ -6400,6 +6434,8 @@ namespace ErsatzTV.Infrastructure.Sqlite.Migrations
                 {
                     b.Navigation("Artwork");
 
+                    b.Navigation("ChannelGraphicsElements");
+
                     b.Navigation("Playouts");
                 });
 
@@ -6445,6 +6481,8 @@ namespace ErsatzTV.Infrastructure.Sqlite.Migrations
             modelBuilder.Entity("ErsatzTV.Core.Domain.GraphicsElement", b =>
                 {
                     b.Navigation("BlockItemGraphicsElements");
+
+                    b.Navigation("ChannelGraphicsElements");
 
                     b.Navigation("DecoGraphicsElements");
 

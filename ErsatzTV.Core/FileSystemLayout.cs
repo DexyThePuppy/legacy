@@ -54,6 +54,8 @@ public static class FileSystemLayout
     public static readonly string GraphicsElementsScriptTemplatesFolder;
     public static readonly string GraphicsElementsSubtitleTemplatesFolder;
     public static readonly string GraphicsElementsMotionTemplatesFolder;
+    public static readonly string GraphicsElementsHtmlTemplatesFolder;
+    public static readonly string ChromiumCacheFolder;
 
     public static readonly string ScriptsFolder;
 
@@ -69,6 +71,9 @@ public static class FileSystemLayout
 
     public static readonly string NextChannelConfigOverlaysFolder;
     public static readonly string NextPlayoutsFolder;
+
+    public static readonly string YouTubeLibraryFolder;
+    public static readonly string YouTubeCacheFolder;
 
     public static readonly string MacOsOldAppDataFolder = Path.Combine(
         Environment.GetEnvironmentVariable("HOME") ?? string.Empty,
@@ -184,6 +189,9 @@ public static class FileSystemLayout
         GraphicsElementsScriptTemplatesFolder = Path.Combine(GraphicsElementsTemplatesFolder, "script");
         GraphicsElementsSubtitleTemplatesFolder = Path.Combine(GraphicsElementsTemplatesFolder, "subtitle");
         GraphicsElementsMotionTemplatesFolder = Path.Combine(GraphicsElementsTemplatesFolder, "motion");
+        GraphicsElementsHtmlTemplatesFolder = Path.Combine(GraphicsElementsTemplatesFolder, "html");
+
+        ChromiumCacheFolder = Path.Combine(AppDataFolder, "cache", "chromium");
 
         ScriptsFolder = Path.Combine(AppDataFolder, "scripts");
 
@@ -198,5 +206,8 @@ public static class FileSystemLayout
 
         NextChannelConfigOverlaysFolder = Path.Combine(AppDataFolder, "next", "channel-config-overlays");
         NextPlayoutsFolder = Path.Combine(AppDataFolder, "next", "playouts");
+
+        YouTubeLibraryFolder = Path.Combine(AppDataFolder, "youtube");
+        YouTubeCacheFolder = Path.Combine(AppDataFolder, "cache", "youtube");
     }
 }

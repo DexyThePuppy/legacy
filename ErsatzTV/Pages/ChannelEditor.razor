@@ -7,6 +7,7 @@
 @using ErsatzTV.Application.Filler
 @using ErsatzTV.Application.Images
 @using ErsatzTV.Application.MediaItems
+@using ErsatzTV.Application.Graphics
 @using ErsatzTV.Application.Templates
 @using ErsatzTV.Application.Watermarks
 @using ErsatzTV.Core.Domain.Filler
@@ -331,7 +332,23 @@ else
 </MudStack>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
-        <MudText>Watermark</MudText>
+        <MudText>Overlays</MudText>
+    </div>
+    <MudSelect T="GraphicsElementViewModel"
+               @bind-SelectedValues="_model.GraphicsElements"
+               Disabled="@(_model.StreamingMode == StreamingMode.HttpLiveStreamingDirect)"
+               ToStringFunc="@(ge => ge?.Name)"
+               Clearable="true"
+               MultiSelection="true">
+        @foreach (GraphicsElementViewModel graphicsElement in _graphicsElements)
+        {
+            <MudSelectItem Value="@graphicsElement">@graphicsElement.Name</MudSelectItem>
+        }
+    </MudSelect>
+</MudStack>
+<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+    <div class="d-flex">
+        <MudText>Watermark (Legacy)</MudText>
     </div>
     <MudSelect @bind-Value="_model.WatermarkId" For="@(() => _model.WatermarkId)"
                Disabled="@(_model.StreamingMode == StreamingMode.HttpLiveStreamingDirect)"
@@ -373,6 +390,7 @@ else
     private List<FFmpegProfileViewModel> _ffmpegProfiles = [];
     private List<LanguageCodeViewModel> _availableCultures = [];
     private List<WatermarkViewModel> _watermarks = [];
+    private List<GraphicsElementViewModel> _graphicsElements = [];
     private List<FillerPresetViewModel> _fillerPresets = [];
     private List<string> _musicVideoCreditsTemplates = [];
     private List<string> _streamSelectors = [];
@@ -398,6 +416,7 @@ else
                 LoadDataAsync(() => Mediator.Send(new GetAllFFmpegProfiles(), token), r => _ffmpegProfiles = r),
                 LoadDataAsync(() => Mediator.Send(new GetAllLanguageCodes(), token), r => _availableCultures = r),
                 LoadDataAsync(() => Mediator.Send(new GetAllWatermarks(), token), r => _watermarks = r),
+                LoadDataAsync(() => Mediator.Send(new GetAllGraphicsElements(), token), r => _graphicsElements = r),
                 LoadDataAsync(() => Mediator.Send(new GetAllFillerPresets(), token)
                     .Map(list => list.Filter(vm => vm.FillerKind == FillerKind.Fallback).ToList()), r => _fillerPresets = r),
                 LoadDataAsync(() => Mediator.Send(new GetMusicVideoCreditTemplates(), token), r => _musicVideoCreditsTemplates = r),
@@ -441,6 +460,9 @@ else
                         _model.PreferredAudioLanguageCode = channelViewModel.PreferredAudioLanguageCode;
                         _model.PreferredAudioTitle = channelViewModel.PreferredAudioTitle;
                         _model.WatermarkId = channelViewModel.WatermarkId;
+                        _model.GraphicsElements = _graphicsElements
+                            .Where(ge => channelViewModel.GraphicsElementIds.Contains(ge.Id))
+                            .ToList();
                         _model.FallbackFillerId = channelViewModel.FallbackFillerId;
                         _model.PreferredSubtitleLanguageCode = channelViewModel.PreferredSubtitleLanguageCode;
                         _model.SubtitleMode = channelViewModel.SubtitleMode;

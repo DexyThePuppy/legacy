@@ -14,6 +14,7 @@ public static class Mapper
             GraphicsElementKind.Subtitle => $"subtitle/{fileName}",
             GraphicsElementKind.Motion => $"motion/{fileName}",
             GraphicsElementKind.Script => $"script/{fileName}",
+            GraphicsElementKind.Html => $"html/{fileName}",
             _ => graphicsElement.Path
         };
 
@@ -23,6 +24,6 @@ public static class Mapper
             name = $"{graphicsElement.Name} ({fileName})";
         }
 
-        return new GraphicsElementViewModel(graphicsElement.Id, name, fileName);
+        return new GraphicsElementViewModel(graphicsElement.Id, name, fileName, graphicsElement.Kind);
     }
 }

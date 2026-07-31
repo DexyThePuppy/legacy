@@ -1,0 +1,310 @@
+@page "/media/sources/youtube"
+@using System.Threading.Channels
+@using ErsatzTV.Application.YouTube
+@using ErsatzTV.Core.Interfaces.YouTube
+@using ErsatzTV.Core.YouTube
+@implements IDisposable
+@inject IMediator Mediator
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+@inject ChannelWriter<IYtDlpWorkerRequest> YtDlpWorkerChannel
+
+<MudForm Style="max-height: 100%">
+    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+        <MudButton Class="ml-8"
+                   StartIcon="@Icons.Material.Filled.AddToQueue"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="@(_ => NavigationManager.NavigateTo("media/sources/youtube/import"))">
+            Import From YouTube
+        </MudButton>
+    </MudPaper>
+    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
+            <MudText Typo="Typo.h5" Class="mb-2">YouTube</MudText>
+            <MudDivider Class="mb-6"/>
+            @if (_imports.Count == 0)
+            {
+                <MudText Class="mb-6">
+                    No YouTube imports yet. Use "Import From YouTube" to add a video, playlist or channel;
+                    videos are indexed with metadata only and downloaded automatically shortly before they play.
+                </MudText>
+            }
+            else
+            {
+                <MudTable Hover="true" Dense="true" Items="_imports" Class="mb-6">
+                    <ColGroup>
+                        <MudHidden Breakpoint="Breakpoint.Xs">
+                            <col style="width: 110px;"/>
+                            <col/>
+                            <col style="width: 100px;"/>
+                            <col style="width: 90px;"/>
+                            <col style="width: 160px;"/>
+                            <col style="width: 180px;"/>
+                            <col style="width: 200px;"/>
+                        </MudHidden>
+                    </ColGroup>
+                    <HeaderContent>
+                        <MudTh/>
+                        <MudTh>Name</MudTh>
+                        <MudTh>Kind</MudTh>
+                        <MudTh>Videos</MudTh>
+                        <MudTh>Auto Sync</MudTh>
+                        <MudTh>Last Sync</MudTh>
+                        <MudTh/>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>
+                            @if (!string.IsNullOrWhiteSpace(context.IconUrl))
+                            {
+                                <MudImage Src="@context.IconUrl" Width="96" Height="54" ObjectFit="ObjectFit.Cover" Style="border-radius: 4px"/>
+                            }
+                        </MudTd>
+                        <MudTd>
+                            <MudText>@context.Name</MudText>
+                            @if (!string.IsNullOrWhiteSpace(context.ChannelName))
+                            {
+                                <MudText Typo="Typo.body2" Style="opacity: 0.7">@context.ChannelName</MudText>
+                            }
+                        </MudTd>
+                        <MudTd>@context.Kind</MudTd>
+                        <MudTd>@context.VideoCount</MudTd>
+                        <MudTd>
+                            @(context.AutoSync ? $"Every {context.SyncIntervalHours}h" : "Off")
+                        </MudTd>
+                        <MudTd>
+                            @(context.LastSyncUtc.HasValue ? context.LastSyncUtc.Value.ToLocalTime().ToString("g") : "never")
+                        </MudTd>
+                        <MudTd>
+                            <div style="align-items: center; display: flex;">
+                                <MudTooltip Text="Sync Now">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Sync"
+                                                   OnClick="@(_ => SyncNow(context))">
+                                    </MudIconButton>
+                                </MudTooltip>
+                                <MudTooltip Text="Edit Settings">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                   OnClick="@(_ => EditImport(context))">
+                                    </MudIconButton>
+                                </MudTooltip>
+                                <MudTooltip Text="Search Videos">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Search"
+                                                   Href="@($"search?query={Uri.EscapeDataString($"type:remote_stream AND tag:\"youtube-{context.Slug}\"")}")">
+                                    </MudIconButton>
+                                </MudTooltip>
+                                <MudTooltip Text="Delete Import">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                   OnClick="@(_ => DeleteImport(context))">
+                                    </MudIconButton>
+                                </MudTooltip>
+                            </div>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+
+            @if (_editing is not null)
+            {
+                <MudText Typo="Typo.h6" Class="mb-2">Edit "@_editing.Name"</MudText>
+                <MudPaper Class="pa-6 mb-6">
+                    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                        <div class="d-flex">
+                            <MudText>Name</MudText>
+                        </div>
+                        <MudTextField @bind-Value="_editName"/>
+                    </MudStack>
+                    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                        <div class="d-flex">
+                            <MudText>Icon URL</MudText>
+                        </div>
+                        <MudTextField @bind-Value="_editIconUrl"/>
+                    </MudStack>
+                    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                        <div class="d-flex">
+                            <MudText>Automatically Re-Sync</MudText>
+                        </div>
+                        <MudCheckBox @bind-Value="_editAutoSync" Dense="true"/>
+                    </MudStack>
+                    <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                        <div class="d-flex">
+                            <MudText>Re-Sync Interval</MudText>
+                        </div>
+                        <MudSelect @bind-Value="_editSyncIntervalHours" Disabled="@(_editAutoSync == false)">
+                            <MudSelectItem Value="6">Every 6 hours</MudSelectItem>
+                            <MudSelectItem Value="12">Every 12 hours</MudSelectItem>
+                            <MudSelectItem Value="24">Every day</MudSelectItem>
+                            <MudSelectItem Value="72">Every 3 days</MudSelectItem>
+                            <MudSelectItem Value="168">Every week</MudSelectItem>
+                        </MudSelect>
+                    </MudStack>
+                    <div class="d-flex">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(_ => SaveEdit())">Save</MudButton>
+                        <MudButton Class="ml-2" OnClick="@(_ => _editing = null)">Cancel</MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            <MudText Typo="Typo.h5" Class="mb-2">yt-dlp Settings</MudText>
+            <MudDivider Class="mb-6"/>
+            <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                <div class="d-flex">
+                    <MudText>yt-dlp Path</MudText>
+                </div>
+                <MudTextField @bind-Value="_ytDlpPath" HelperText="The full path to the yt-dlp executable; located automatically when on PATH"/>
+            </MudStack>
+            <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                <div class="d-flex">
+                    <MudText>Deno Path</MudText>
+                </div>
+                <MudTextField @bind-Value="_denoPath" HelperText="The full path to the deno executable (required by yt-dlp for YouTube); located automatically when on PATH"/>
+            </MudStack>
+            <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                <div class="d-flex">
+                    <MudText>Format</MudText>
+                </div>
+                <MudTextField @bind-Value="_format" HelperText="yt-dlp format selection used for downloads and streaming"/>
+            </MudStack>
+            <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                <div class="d-flex">
+                    <MudText>Extra Arguments</MudText>
+                </div>
+                <MudTextField @bind-Value="_extraArgs" HelperText="Optional extra yt-dlp arguments for downloads (e.g. --cookies-from-browser firefox)"/>
+            </MudStack>
+            <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+                <div class="d-flex">
+                    <MudText>Video Cache Size (GB)</MudText>
+                </div>
+                <MudTextField T="int" @bind-Value="_cacheMaxGb" HelperText="@($"Downloaded videos are kept until this limit is reached; currently using {_cacheUsedGb} GB")"/>
+            </MudStack>
+            <div class="d-flex mb-16">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="@(_ => SaveSettings())">
+                    Save Settings
+                </MudButton>
+            </div>
+        </MudContainer>
+    </div>
+</MudForm>
+
+@code {
+    private CancellationTokenSource _cts;
+
+    private List<YouTubeImportManifest> _imports = [];
+
+    private YouTubeImportManifest _editing;
+    private string _editName;
+    private string _editIconUrl;
+    private bool _editAutoSync;
+    private int _editSyncIntervalHours = 24;
+
+    private string _ytDlpPath;
+    private string _denoPath;
+    private string _format;
+    private string _extraArgs;
+    private int _cacheMaxGb = 30;
+    private double _cacheUsedGb;
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+
+        await ReloadData(_cts.Token);
+    }
+
+    private async Task ReloadData(CancellationToken token)
+    {
+        try
+        {
+            _imports = await Mediator.Send(new GetYouTubeImports(), token);
+
+            YtDlpStatusViewModel status = await Mediator.Send(new GetYtDlpStatus(), token);
+            _ytDlpPath = status.YtDlpPath;
+            _denoPath = status.DenoPath;
+            _format = status.Format;
+            _extraArgs = status.ExtraArgs;
+            _cacheMaxGb = status.CacheMaxGb;
+            _cacheUsedGb = status.CacheUsedGb;
+        }
+        catch (OperationCanceledException)
+        {
+            // do nothing
+        }
+    }
+
+    private async Task SyncNow(YouTubeImportManifest manifest)
+    {
+        await YtDlpWorkerChannel.WriteAsync(new SyncYouTubeImportRequest(manifest.Slug), _cts.Token);
+        Snackbar.Add($"Queued sync for {manifest.Name}", Severity.Info);
+    }
+
+    private void EditImport(YouTubeImportManifest manifest)
+    {
+        _editing = manifest;
+        _editName = manifest.Name;
+        _editIconUrl = manifest.IconUrl;
+        _editAutoSync = manifest.AutoSync;
+        _editSyncIntervalHours = manifest.SyncIntervalHours;
+    }
+
+    private async Task SaveEdit()
+    {
+        if (_editing is null)
+        {
+            return;
+        }
+
+        Either<BaseError, Unit> result = await Mediator.Send(
+            new UpdateYouTubeImport(_editing.Slug, _editName, _editIconUrl, _editAutoSync, _editSyncIntervalHours),
+            _cts.Token);
+
+        result.Match(
+            _ =>
+            {
+                Snackbar.Add("Saved import settings", Severity.Success);
+                _editing = null;
+            },
+            error => Snackbar.Add($"Unable to save import settings: {error.Value}", Severity.Error));
+
+        await ReloadData(_cts.Token);
+        StateHasChanged();
+    }
+
+    private async Task DeleteImport(YouTubeImportManifest manifest)
+    {
+        var parameters = new DialogParameters { { "EntityType", "YouTube Import" }, { "EntityName", manifest.Name } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+
+        IDialogReference dialog = await Dialog.ShowAsync<DeleteDialog>("Delete YouTube Import", parameters, options);
+        DialogResult result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Either<BaseError, Unit> deleteResult = await Mediator.Send(new DeleteYouTubeImport(manifest.Slug), _cts.Token);
+            deleteResult.Match(
+                _ => Snackbar.Add($"Deleted {manifest.Name}", Severity.Success),
+                error => Snackbar.Add($"Unable to delete import: {error.Value}", Severity.Error));
+
+            await ReloadData(_cts.Token);
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveSettings()
+    {
+        Either<BaseError, Unit> result = await Mediator.Send(
+            new UpdateYtDlpSettings(_ytDlpPath, _denoPath, _format, _extraArgs, _cacheMaxGb),
+            _cts.Token);
+
+        result.Match(
+            _ => Snackbar.Add("Saved yt-dlp settings", Severity.Success),
+            error => Snackbar.Add($"Unable to save yt-dlp settings: {error.Value}", Severity.Error));
+    }
+
+}

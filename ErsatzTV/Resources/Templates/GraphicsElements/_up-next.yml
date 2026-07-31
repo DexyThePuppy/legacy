@@ -1,0 +1,82 @@
+name: Up Next (End of Item)
+html: |
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <style>
+      html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+      .up-next {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 1rem 1.3rem;
+        color: #fff;
+        background: linear-gradient(90deg, rgba(0,0,0,0.85), rgba(0,0,0,0.35));
+        border-left: 6px solid #4ac1e8;
+        box-sizing: border-box;
+        animation: slide-in 0.6s ease-out both;
+      }
+      .label {
+        font-size: 0.95rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #4ac1e8;
+      }
+      .title {
+        margin-top: 0.25rem;
+        font-size: 1.7rem;
+        font-weight: 700;
+        line-height: 1.15;
+        text-shadow: 0 2px 8px rgba(0,0,0,0.55);
+      }
+      .countdown {
+        margin-top: 0.3rem;
+        font-size: 1rem;
+        opacity: 0.85;
+      }
+      @keyframes slide-in {
+        from { transform: translateX(-110%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="up-next">
+      <div class="label">Up Next</div>
+      <div class="title">{{ Next_Title }}</div>
+      <div class="countdown">starts in <span id="secs"></span></div>
+    </div>
+    <script>
+      // countdown timer driven by the render-time value of Next_StartsInSeconds
+      let remaining = Math.round({{ Next_StartsInSeconds ?? 0 }});
+      const el = document.getElementById('secs');
+      function tick() {
+        el.textContent = remaining > 60
+          ? Math.ceil(remaining / 60) + ' min'
+          : remaining + 's';
+        if (remaining > 0) { remaining--; setTimeout(tick, 1000); }
+      }
+      tick();
+    </script>
+  </body>
+  </html>
+location: BottomLeft
+horizontal_margin_percent: 3
+vertical_margin_percent: 5
+width_percent: 45
+height_percent: 20
+opacity_percent: 100
+z_index: 20
+capture_fps: 15
+start_seconds_from_end: 30
+duration_seconds: 20
+epg_entries: 0

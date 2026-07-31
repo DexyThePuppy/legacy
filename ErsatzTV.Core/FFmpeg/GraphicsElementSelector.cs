@@ -135,6 +135,24 @@ public class GraphicsElementSelector(IDecoSelector decoSelector, ILogger<Graphic
 
         result.AddRange(playoutItem.PlayoutItemGraphicsElements);
 
+        // finally, merge channel-level graphics elements (overlays)
+        foreach (ChannelGraphicsElement channelElement in channel.ChannelGraphicsElements ?? [])
+        {
+            if (result.All(pige => pige.GraphicsElement?.Id != channelElement.GraphicsElementId))
+            {
+                logger.LogDebug(
+                    "Adding channel graphics element {Element}",
+                    channelElement.GraphicsElement?.Name ?? channelElement.GraphicsElement?.Path);
+
+                result.Add(
+                    new PlayoutItemGraphicsElement
+                    {
+                        PlayoutItem = playoutItem,
+                        GraphicsElement = channelElement.GraphicsElement
+                    });
+            }
+        }
+
         return result;
     }
 }

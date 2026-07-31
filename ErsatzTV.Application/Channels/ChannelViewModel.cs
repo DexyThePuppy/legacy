@@ -35,7 +35,8 @@ public record ChannelViewModel(
     ChannelTranscodeMode TranscodeMode,
     ChannelIdleBehavior IdleBehavior,
     bool IsEnabled,
-    bool ShowInEpg)
+    bool ShowInEpg,
+    List<int> GraphicsElementIds)
 {
     public string WebEncodedName => WebUtility.UrlEncode(Name);
 }

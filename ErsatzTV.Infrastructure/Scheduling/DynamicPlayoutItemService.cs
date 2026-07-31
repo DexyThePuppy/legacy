@@ -14,6 +14,7 @@ using ErsatzTV.Core.Interfaces.Repositories;
 using ErsatzTV.Core.Scheduling;
 using ErsatzTV.Infrastructure.Data;
 using ErsatzTV.Infrastructure.Extensions;
+using ErsatzTV.Infrastructure.YouTube;
 using Microsoft.EntityFrameworkCore;
 
 namespace ErsatzTV.Infrastructure.Scheduling;
@@ -26,6 +27,7 @@ public class DynamicPlayoutItemService(
     IPlexPathReplacementService plexPathReplacementService,
     IJellyfinPathReplacementService jellyfinPathReplacementService,
     IEmbyPathReplacementService embyPathReplacementService,
+    IYouTubePlaybackResolver youTubePlaybackResolver,
     IDecoSelector decoSelector) : IDynamicPlayoutItemService
 {
     private static readonly Random FallbackRandom = new();
@@ -235,6 +237,17 @@ public class DynamicPlayoutItemService(
         {
             if (playoutItem.MediaItem is RemoteStream remoteStream)
             {
+                Option<string> maybeYouTubePath = await youTubePlaybackResolver.ResolvePathAndPrefetch(
+                    dbContext,
+                    playoutItem,
+                    remoteStream,
+                    cancellationToken);
+
+                foreach (string youTubePath in maybeYouTubePath)
+                {
+                    return new PlayoutItemWithPath(playoutItem, youTubePath);
+                }
+
                 path = !string.IsNullOrWhiteSpace(remoteStream.Url)
                     ? remoteStream.Url
                     : $"http://localhost:{Settings.StreamingPort}/ffmpeg/remote-stream/{remoteStream.Id}";

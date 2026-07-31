@@ -60,6 +60,8 @@ public abstract class FFmpegProcessHandler<T> : IRequestHandler<T, Either<BaseEr
             .ThenInclude(p => p.Resolution)
             .Include(c => c.Artwork)
             .Include(c => c.Watermark)
+            .Include(c => c.ChannelGraphicsElements)
+            .ThenInclude(cge => cge.GraphicsElement)
             .SelectOneAsync(c => c.Number, c => c.Number == request.ChannelNumber, cancellationToken);
 
         foreach (var channel in maybeChannel)

@@ -24,6 +24,7 @@ public class TemplateDataRepository(IFileSystem fileSystem, IDbContextFactory<Tv
             Episode => await GetEpisodeTemplateData(mediaItem.Id, cancellationToken),
             MusicVideo => await GetMusicVideoTemplateData(mediaItem.Id, cancellationToken),
             OtherVideo => await GetOtherVideoTemplateData(mediaItem.Id, cancellationToken),
+            RemoteStream => await GetRemoteStreamTemplateData(mediaItem.Id, cancellationToken),
             _ => Option<Dictionary<string, object>>.None
         };
 
@@ -310,6 +311,58 @@ public class TemplateDataRepository(IFileSystem fileSystem, IDbContextFactory<Tv
                 };
 
                 foreach (var version in musicVideo.MediaVersions.HeadOrNone())
+                {
+                    foreach (var file in version.MediaFiles.HeadOrNone())
+                    {
+                        result.Add(MediaItemTemplateDataKey.Path, file.Path);
+                    }
+                }
+
+                return result;
+            }
+        }
+
+        return Option<Dictionary<string, object>>.None;
+    }
+
+    private async Task<Option<Dictionary<string, object>>> GetRemoteStreamTemplateData(
+        int remoteStreamId,
+        CancellationToken cancellationToken)
+    {
+        await using TvContext dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        Option<RemoteStream> maybeRemoteStream = await dbContext.RemoteStreams
+            .AsNoTracking()
+            .Include(rs => rs.MediaVersions)
+            .ThenInclude(mv => mv.MediaFiles)
+            .Include(rs => rs.RemoteStreamMetadata)
+            .ThenInclude(rsm => rsm.Genres)
+            .Include(rs => rs.RemoteStreamMetadata)
+            .ThenInclude(rsm => rsm.Tags)
+            .Include(rs => rs.RemoteStreamMetadata)
+            .ThenInclude(rsm => rsm.Studios)
+            .SelectOneAsync(rs => rs.Id, rs => rs.Id == remoteStreamId, cancellationToken);
+
+        foreach (RemoteStream remoteStream in maybeRemoteStream)
+        {
+            foreach (RemoteStreamMetadata metadata in remoteStream.RemoteStreamMetadata.HeadOrNone())
+            {
+                var headVersion = remoteStream.GetHeadVersion();
+
+                var result = new Dictionary<string, object>
+                {
+                    [MediaItemTemplateDataKey.Title] = metadata.Title,
+                    [MediaItemTemplateDataKey.Plot] = metadata.Plot,
+                    [MediaItemTemplateDataKey.ReleaseDate] = metadata.ReleaseDate,
+                    [MediaItemTemplateDataKey.Studios] = (metadata.Studios ?? []).Map(s => s.Name).OrderBy(identity),
+                    [MediaItemTemplateDataKey.Genres] = (metadata.Genres ?? []).Map(g => g.Name).OrderBy(identity),
+                    [MediaItemTemplateDataKey.Resolution] = new Resolution
+                        { Height = headVersion.Height, Width = headVersion.Width },
+                    [MediaItemTemplateDataKey.Duration] = headVersion.Duration,
+                    [MediaItemTemplateDataKey.ContentRating] = metadata.ContentRating
+                };
+
+                foreach (var version in remoteStream.MediaVersions.HeadOrNone())
                 {
                     foreach (var file in version.MediaFiles.HeadOrNone())
                     {

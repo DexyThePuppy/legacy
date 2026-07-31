@@ -1,5 +1,6 @@
 ﻿using ErsatzTV.Application.Artworks;
 using ErsatzTV.Application.Channels;
+using ErsatzTV.Application.Graphics;
 using ErsatzTV.Core.Domain;
 
 namespace ErsatzTV.ViewModels;
@@ -47,6 +48,7 @@ public class ChannelEditViewModel
     public NextEngineTextSubtitleMode NextEngineTextSubtitleMode { get; set; }
     public StreamingMode StreamingMode { get; set; }
     public int? WatermarkId { get; set; }
+    public IReadOnlyCollection<GraphicsElementViewModel> GraphicsElements { get; set; } = [];
     public int? FallbackFillerId { get; set; }
     public string PreferredSubtitleLanguageCode { get; set; }
     public ChannelSubtitleMode SubtitleMode { get; set; }
@@ -99,7 +101,8 @@ public class ChannelEditViewModel
             TranscodeMode,
             IdleBehavior,
             IsEnabled,
-            ShowInEpg);
+            ShowInEpg,
+            GraphicsElements.Select(ge => ge.Id).ToList());
 
     public CreateChannel ToCreate() =>
         new(
@@ -133,5 +136,6 @@ public class ChannelEditViewModel
             TranscodeMode,
             IdleBehavior,
             IsEnabled,
-            ShowInEpg);
+            ShowInEpg,
+            GraphicsElements.Select(ge => ge.Id).ToList());
 }

@@ -16,6 +16,8 @@ public class GraphicsElement
     public List<BlockItemGraphicsElement> BlockItemGraphicsElements { get; set; }
     public List<Deco> Decos { get; set; }
     public List<DecoGraphicsElement> DecoGraphicsElements { get; set; }
+    public List<Channel> Channels { get; set; }
+    public List<ChannelGraphicsElement> ChannelGraphicsElements { get; set; }
 
     // for unit testing
     public override string ToString() => Path;

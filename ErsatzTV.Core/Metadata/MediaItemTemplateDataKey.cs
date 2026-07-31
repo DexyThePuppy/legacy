@@ -7,6 +7,9 @@ public static class MediaItemTemplateDataKey
     public static readonly string StreamSeek = "MediaItem_StreamSeek";
     public static readonly string Start = "MediaItem_Start";
     public static readonly string Stop = "MediaItem_Stop";
+    public static readonly string DurationSeconds = "MediaItem_DurationSeconds";
+    public static readonly string StreamSeekSeconds = "MediaItem_StreamSeekSeconds";
+    public static readonly string RemainingSeconds = "MediaItem_RemainingSeconds";
 
     // common
     public static readonly string Path = "MediaItem_Path";

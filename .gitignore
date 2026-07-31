@@ -45,3 +45,14 @@ scripts/download-test-content.sh
 docker-compose.override.yml
 
 ErsatzTV/wwwroot/v2/
+
+# Local development artifacts (config, transcode, publish output, tool downloads, logs)
+/.etv-*
+
+# Local binaries and downloads (not part of the repo)
+/ffmpeg/
+/main/
+/scanner/
+/rust-build/
+/ErsatzTV-Legacy-*/
+/*.zip

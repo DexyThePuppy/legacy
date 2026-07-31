@@ -53,6 +53,11 @@ public record ScriptElementDataContext(ScriptGraphicsElement ScriptElement)
     public int EpgEntries => ScriptElement.EpgEntries;
 }
 
+public record HtmlElementDataContext(HtmlGraphicsElement HtmlElement)
+    : GraphicsElementContext, ITemplateDataContext
+{
+    public int EpgEntries => HtmlElement.EpgEntries;
+}
 
 public interface ITemplateDataContext
 {

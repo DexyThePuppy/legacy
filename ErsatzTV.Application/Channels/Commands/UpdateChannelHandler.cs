@@ -45,13 +45,20 @@ public class UpdateChannelHandler(
             };
         }
 
+        var existingGraphicsElementIds = (c.ChannelGraphicsElements ?? [])
+            .Map(cge => cge.GraphicsElementId)
+            .ToList();
+        var updatedGraphicsElementIds = (update.GraphicsElementIds ?? []).Distinct().ToList();
+
         bool hasEpgChange = c.PlayoutSource != update.PlayoutSource || c.ShowInEpg != update.ShowInEpg;
         bool hasPlayoutChange = hasEpgChange || c.WatermarkId != update.WatermarkId ||
                                 c.PreferredAudioLanguageCode != update.PreferredAudioLanguageCode ||
                                 c.PreferredAudioTitle != update.PreferredAudioTitle ||
                                 c.PreferredSubtitleLanguageCode != update.PreferredSubtitleLanguageCode ||
                                 c.MusicVideoCreditsMode != update.MusicVideoCreditsMode ||
-                                c.SubtitleMode != update.SubtitleMode;
+                                c.SubtitleMode != update.SubtitleMode ||
+                                !existingGraphicsElementIds.OrderBy(identity)
+                                    .SequenceEqual(updatedGraphicsElementIds.OrderBy(identity));
 
         c.Name = update.Name;
         c.Number = update.Number;
@@ -144,6 +151,16 @@ public class UpdateChannelHandler(
         c.WatermarkId = update.WatermarkId;
         c.FallbackFillerId = update.FallbackFillerId;
 
+        // sync channel overlays (graphics elements)
+        c.ChannelGraphicsElements ??= [];
+        c.ChannelGraphicsElements.RemoveAll(cge => !updatedGraphicsElementIds.Contains(cge.GraphicsElementId));
+        foreach (int graphicsElementId in updatedGraphicsElementIds
+                     .Where(id => c.ChannelGraphicsElements.All(cge => cge.GraphicsElementId != id)))
+        {
+            c.ChannelGraphicsElements.Add(
+                new ChannelGraphicsElement { ChannelId = c.Id, GraphicsElementId = graphicsElementId });
+        }
+
         if (c.StreamingEngine is StreamingEngine.Next &&
             c.StreamingMode is not StreamingMode.HttpLiveStreamingSegmenter &&
             c.StreamingMode is not StreamingMode.TransportStreamHybrid)
@@ -197,6 +214,7 @@ public class UpdateChannelHandler(
             .Include(c => c.Artwork)
             .Include(c => c.Watermark)
             .Include(c => c.Playouts)
+            .Include(c => c.ChannelGraphicsElements)
             .SelectOneAsync(c => c.Id, c => c.Id == updateChannel.ChannelId, cancellationToken)
             .Map(o => o.ToValidation<BaseError>("Channel does not exist."));
 

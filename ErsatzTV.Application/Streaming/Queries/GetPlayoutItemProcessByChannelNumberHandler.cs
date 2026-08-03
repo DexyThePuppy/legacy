@@ -291,7 +291,7 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
                     true,
                     effectiveNow.ToUnixTimeSeconds(),
                     Option<int>.None,
-                    Optional(channel.PlayoutOffset),
+                    ChannelPlaybackClock.GetProcessModelOffset(channel),
                     !effectiveRealtime);
             }
 
@@ -424,7 +424,7 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
                 isComplete,
                 effectiveNow.ToUnixTimeSeconds(),
                 playoutItemResult.MediaItemId,
-                Optional(channel.PlayoutOffset),
+                ChannelPlaybackClock.GetProcessModelOffset(channel),
                 !effectiveRealtime);
 
             return Right<BaseError, PlayoutItemProcessModel>(result);
@@ -490,7 +490,7 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
                         true,
                         now.ToUnixTimeSeconds(),
                         Option<int>.None,
-                        Optional(channel.PlayoutOffset),
+                        ChannelPlaybackClock.GetProcessModelOffset(channel),
                         !request.HlsRealtime);
                 case PlayoutItemDoesNotExistOnDisk:
                     Command doesNotExistProcess = await _ffmpegProcessService.ForError(
@@ -515,7 +515,7 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
                         true,
                         now.ToUnixTimeSeconds(),
                         Option<int>.None,
-                        Optional(channel.PlayoutOffset),
+                        ChannelPlaybackClock.GetProcessModelOffset(channel),
                         !request.HlsRealtime);
                 default:
                     Command errorProcess = await _ffmpegProcessService.ForError(
@@ -540,7 +540,7 @@ public class GetPlayoutItemProcessByChannelNumberHandler : FFmpegProcessHandler<
                         true,
                         now.ToUnixTimeSeconds(),
                         Option<int>.None,
-                        Optional(channel.PlayoutOffset),
+                        ChannelPlaybackClock.GetProcessModelOffset(channel),
                         !request.HlsRealtime);
             }
         }

@@ -62,9 +62,23 @@
 
         function previewChannel(uri) {
           var video = document.getElementById('video');
+          if (!video) {
+            return;
+          }
+
+          stopPreview();
+          video.muted = true;
+
+          function tryPlay() {
+            var playPromise = video.play();
+            if (playPromise && typeof playPromise.catch === 'function') {
+              playPromise.catch(function () { /* autoplay / interruption */ });
+            }
+          }
+
           if (Hls.isSupported()) {
             var hls = new Hls({
-              debug: true,
+              debug: false,
               manifestLoadPolicy: {
                 default: {
                   maxTimeToFirstByteMs: Infinity,
@@ -77,13 +91,9 @@
             $('#video').data('hls', hls);
             hls.loadSource(uri);
             if (uri.endsWith('ts')) {
-                hls.on(Hls.Events.MEDIA_ATTACHED, function () {
-                  video.play();
-                });
+                hls.on(Hls.Events.MEDIA_ATTACHED, tryPlay);
             } else {
-                hls.on(Hls.Events.MANIFEST_PARSED, function () {
-                  video.play();
-                });
+                hls.on(Hls.Events.MANIFEST_PARSED, tryPlay);
             }
             hls.attachMedia(video);
           }
@@ -92,15 +102,21 @@
           // This is using the built-in support of the plain video element, without using hls.js.
           else if (video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = uri;
-            video.addEventListener('canplay', function () {
-              video.play();
-            });
+            video.addEventListener('canplay', tryPlay);
           }
         }
 
         function stopPreview() {
             var hls = $('#video').data('hls');
-            hls && hls.destroy();
+            if (hls) {
+              hls.destroy();
+              $('#video').removeData('hls');
+            }
+            var video = document.getElementById('video');
+            if (video) {
+              video.removeAttribute('src');
+              video.load();
+            }
         }
 
         window.overlayTest = {

@@ -20,11 +20,18 @@
                 @if (!string.IsNullOrWhiteSpace(RawPreviewUri))
                 {
                     <div style="flex: 1 1 360px; min-width: 320px;">
-                        <MudText Typo="Typo.caption" Class="mb-1" Style="opacity: 0.8;">Raw preview (no delay, 60 fps)</MudText>
-                        <div style="width: 100%; aspect-ratio: 16 / 9; background: #111; border-radius: 4px; overflow: hidden;">
+                        <MudText Typo="Typo.caption" Class="mb-1" Style="opacity: 0.8;">Raw preview (no delay, 30 fps)</MudText>
+                        <div style="position: relative; width: 100%; aspect-ratio: 16 / 9; background: #111; border-radius: 4px; overflow: hidden;">
                             <img src="@RawPreviewUri"
                                  alt="Raw channel preview"
                                  style="width: 100%; height: 100%; object-fit: contain; display: block; background: #000;"/>
+                            @if (!string.IsNullOrWhiteSpace(OverlaysUri))
+                            {
+                                <iframe src="@OverlaysUri"
+                                        title="Channel overlays"
+                                        style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; pointer-events: none; z-index: 2;"
+                                        allowtransparency="true"></iframe>
+                            }
                         </div>
                     </div>
                 }
@@ -47,20 +54,40 @@
     [Parameter]
     public string RawPreviewUri { get; set; }
 
-    protected override Task OnParametersSetAsync() => Task.CompletedTask;
+    [Parameter]
+    public string ChannelNumber { get; set; }
+
+    private string OverlaysUri { get; set; }
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(ChannelNumber))
+        {
+            OverlaysUri = $"ffmpeg/preview/{Uri.EscapeDataString(ChannelNumber)}/overlays.html?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+        }
+        else
+        {
+            OverlaysUri = null;
+        }
+
+        return Task.CompletedTask;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        try
+        if (firstRender)
         {
-            await JsRuntime.InvokeVoidAsync("previewChannel", StreamUri);
-        }
-        catch (Exception)
-        {
-            // ignored
+            try
+            {
+                await JsRuntime.InvokeVoidAsync("previewChannel", StreamUri);
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
         }
 
-        await base.OnAfterRenderAsync(true);
+        await base.OnAfterRenderAsync(firstRender);
     }
 
     private void Close() => MudDialog.Close(DialogResult.Ok(true));

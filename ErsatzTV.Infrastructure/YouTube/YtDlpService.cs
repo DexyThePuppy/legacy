@@ -64,10 +64,107 @@ public class YtDlpService(
         }
 
         string ytDlpPath = maybeYtDlp.ValueUnsafe();
-
         bool isUrl = IsUrl(input);
-        string target = isUrl ? NormalizeUrl(input) : $"ytsearch25:{input}";
 
+        try
+        {
+            if (isUrl)
+            {
+                Either<BaseError, string> jsonResult = await RunYtDlpJson(
+                    ytDlpPath,
+                    NormalizeUrl(input),
+                    cancellationToken);
+                foreach (BaseError error in jsonResult.LeftToSeq())
+                {
+                    return error;
+                }
+
+                return ParseQueryResult(jsonResult.RightToSeq().Head(), isUrl: true);
+            }
+
+            // Text search: fetch matching channels and videos in parallel.
+            string videoTarget = $"ytsearch25:{input}";
+            string channelTarget =
+                $"https://www.youtube.com/results?search_query={Uri.EscapeDataString(input)}&sp=EgIQAg%253D%253D";
+
+            Task<Either<BaseError, string>> videoJsonTask = RunYtDlpJson(ytDlpPath, videoTarget, cancellationToken);
+            Task<Either<BaseError, string>> channelJsonTask = RunYtDlpJson(ytDlpPath, channelTarget, cancellationToken);
+            await Task.WhenAll(videoJsonTask, channelJsonTask);
+
+            Either<BaseError, string> videoJson = await videoJsonTask;
+            Either<BaseError, string> channelJson = await channelJsonTask;
+
+            List<YtDlpChannelHit> channels = [];
+            foreach (string json in channelJson.RightToSeq())
+            {
+                channels = ParseChannelHits(json);
+            }
+
+            if (channelJson.IsLeft)
+            {
+                logger.LogDebug(
+                    "YouTube channel search failed for {Query}: {Error}",
+                    input,
+                    channelJson.LeftToSeq().Head().Value);
+            }
+
+            foreach (BaseError error in videoJson.LeftToSeq())
+            {
+                // channels alone are still useful
+                if (channels.Count > 0)
+                {
+                    return new YtDlpQueryResult(
+                        YouTubeImportKind.Search,
+                        input,
+                        input,
+                        string.Empty,
+                        string.Empty,
+                        channels[0].ThumbnailUrl,
+                        [],
+                        channels);
+                }
+
+                return error;
+            }
+
+            Either<BaseError, YtDlpQueryResult> parsedVideos = ParseQueryResult(videoJson.RightToSeq().Head(), isUrl: false);
+            foreach (BaseError error in parsedVideos.LeftToSeq())
+            {
+                if (channels.Count > 0)
+                {
+                    return new YtDlpQueryResult(
+                        YouTubeImportKind.Search,
+                        input,
+                        input,
+                        string.Empty,
+                        string.Empty,
+                        channels[0].ThumbnailUrl,
+                        [],
+                        channels);
+                }
+
+                return error;
+            }
+
+            YtDlpQueryResult videos = parsedVideos.RightToSeq().Head();
+            return videos with { Channels = channels };
+        }
+        catch (OperationCanceledException)
+        {
+            return BaseError.New("yt-dlp query was canceled");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Error querying yt-dlp");
+            return BaseError.New(ex.Message);
+        }
+    }
+
+    private async Task<Either<BaseError, string>> RunYtDlpJson(
+        string ytDlpPath,
+        string target,
+        CancellationToken cancellationToken)
+    {
         var startInfo = new ProcessStartInfo
         {
             FileName = ytDlpPath,
@@ -86,36 +183,24 @@ public class YtDlpService(
 
         await AddPathEnvironment(startInfo, cancellationToken);
 
-        try
+        using var process = new Process();
+        process.StartInfo = startInfo;
+        process.Start();
+
+        Task<string> stdOutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        Task<string> stdErrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        await process.WaitForExitAsync(cancellationToken);
+
+        string json = await stdOutTask;
+        string err = await stdErrTask;
+
+        if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(json))
         {
-            using var process = new Process();
-            process.StartInfo = startInfo;
-            process.Start();
-
-            Task<string> stdOutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            Task<string> stdErrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
-
-            string json = await stdOutTask;
-            string err = await stdErrTask;
-
-            if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(json))
-            {
-                logger.LogWarning("yt-dlp query failed: {Error}", err);
-                return BaseError.New(string.IsNullOrWhiteSpace(err) ? "yt-dlp query failed" : err.Trim());
-            }
-
-            return ParseQueryResult(json, isUrl);
+            logger.LogWarning("yt-dlp query failed for {Target}: {Error}", target, err);
+            return BaseError.New(string.IsNullOrWhiteSpace(err) ? "yt-dlp query failed" : err.Trim());
         }
-        catch (OperationCanceledException)
-        {
-            return BaseError.New("yt-dlp query was canceled");
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Error querying yt-dlp");
-            return BaseError.New(ex.Message);
-        }
+
+        return json;
     }
 
     public async Task<Either<BaseError, string>> DownloadVideo(
@@ -329,7 +414,8 @@ public class YtDlpService(
                 channelName,
                 webpageUrl,
                 thumbnailUrl,
-                videos);
+                videos,
+                []);
         }
 
         // single video
@@ -343,14 +429,83 @@ public class YtDlpService(
                 video.ChannelName,
                 video.WebpageUrl,
                 video.ThumbnailUrl,
-                [video]);
+                [video],
+                []);
         }
 
         return BaseError.New("Unable to parse yt-dlp output");
     }
 
+    private static List<YtDlpChannelHit> ParseChannelHits(string json)
+    {
+        var channels = new List<YtDlpChannelHit>();
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement root = doc.RootElement;
+        if (!root.TryGetProperty("entries", out JsonElement entries) || entries.ValueKind != JsonValueKind.Array)
+        {
+            return channels;
+        }
+
+        foreach (JsonElement entry in entries.EnumerateArray())
+        {
+            foreach (YtDlpChannelHit hit in ParseChannelHit(entry))
+            {
+                if (channels.All(c => c.Id != hit.Id))
+                {
+                    channels.Add(hit);
+                }
+            }
+        }
+
+        return channels;
+    }
+
+    private static Option<YtDlpChannelHit> ParseChannelHit(JsonElement entry)
+    {
+        if (!IsChannelEntry(entry))
+        {
+            return None;
+        }
+
+        string id = GetString(entry, "id") ?? GetString(entry, "channel_id");
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return None;
+        }
+
+        string title = GetString(entry, "title") ?? GetString(entry, "channel") ?? GetString(entry, "uploader") ?? id;
+        string url = GetString(entry, "url") ?? GetString(entry, "webpage_url") ??
+                     $"https://www.youtube.com/channel/{id}";
+        string thumbnail = AbsolutizeUrl(GetThumbnail(entry));
+
+        return new YtDlpChannelHit(id, title, url, thumbnail);
+    }
+
+    private static bool IsChannelEntry(JsonElement entry)
+    {
+        string ieKey = GetString(entry, "ie_key") ?? string.Empty;
+        if (ieKey.Equals("YoutubeTab", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        string url = GetString(entry, "url") ?? GetString(entry, "webpage_url") ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(url) && IsChannelUrl(url))
+        {
+            return true;
+        }
+
+        string id = GetString(entry, "id") ?? string.Empty;
+        return id.StartsWith("UC", StringComparison.Ordinal) && id.Length >= 24;
+    }
+
     private static Option<YtDlpVideo> ParseVideo(JsonElement entry)
     {
+        if (IsChannelEntry(entry))
+        {
+            return None;
+        }
+
         string id = GetString(entry, "id");
         if (string.IsNullOrWhiteSpace(id))
         {
@@ -402,7 +557,7 @@ public class YtDlpService(
         string thumbnail = GetString(element, "thumbnail");
         if (!string.IsNullOrWhiteSpace(thumbnail))
         {
-            return thumbnail;
+            return AbsolutizeUrl(thumbnail);
         }
 
         if (element.TryGetProperty("thumbnails", out JsonElement thumbnails) &&
@@ -418,10 +573,25 @@ public class YtDlpService(
                 }
             }
 
-            return result;
+            return AbsolutizeUrl(result);
         }
 
         return null;
+    }
+
+    private static string AbsolutizeUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return url;
+        }
+
+        if (url.StartsWith("//", StringComparison.Ordinal))
+        {
+            return "https:" + url;
+        }
+
+        return url;
     }
 
     private static string GetString(JsonElement element, string property) =>

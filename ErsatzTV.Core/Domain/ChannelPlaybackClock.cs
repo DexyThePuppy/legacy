@@ -12,7 +12,23 @@ public static class ChannelPlaybackClock
         }
 
         DateTimeOffset now = wallClock ?? DateTimeOffset.Now;
-        return now - channel.PlaybackControlOffset - (channel.PlayoutOffset ?? TimeSpan.Zero);
+        return now - GetTimelineOffset(channel);
+    }
+
+    /// <summary>
+    ///     Combined seek/pause/playout offset applied by <see cref="GetEffectiveNow"/>.
+    ///     HLS process models must add this back onto <c>Until</c> so session buffering stays on wall clock.
+    /// </summary>
+    public static TimeSpan GetTimelineOffset(Channel channel)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+        return channel.PlaybackControlOffset + (channel.PlayoutOffset ?? TimeSpan.Zero);
+    }
+
+    public static Option<TimeSpan> GetProcessModelOffset(Channel channel)
+    {
+        TimeSpan offset = GetTimelineOffset(channel);
+        return offset == TimeSpan.Zero ? Option<TimeSpan>.None : Some(offset);
     }
 
     public static void PauseAt(Channel channel, DateTimeOffset effectiveNow)

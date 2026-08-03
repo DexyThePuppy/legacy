@@ -54,5 +54,7 @@ ErsatzTV/wwwroot/v2/
 /main/
 /scanner/
 /rust-build/
+/publish/
+/ErsatzTV-Legacy.app/
 /ErsatzTV-Legacy-*/
 /*.zip

@@ -18,6 +18,12 @@ public record YtDlpVideo(
     DateTime? UploadDate,
     string Description);
 
+public record YtDlpChannelHit(
+    string Id,
+    string Title,
+    string WebpageUrl,
+    string ThumbnailUrl);
+
 public record YtDlpQueryResult(
     YouTubeImportKind Kind,
     string Id,
@@ -25,7 +31,21 @@ public record YtDlpQueryResult(
     string ChannelName,
     string WebpageUrl,
     string ThumbnailUrl,
-    List<YtDlpVideo> Videos);
+    List<YtDlpVideo> Videos,
+    List<YtDlpChannelHit> Channels)
+{
+    public YtDlpQueryResult(
+        YouTubeImportKind kind,
+        string id,
+        string title,
+        string channelName,
+        string webpageUrl,
+        string thumbnailUrl,
+        List<YtDlpVideo> videos)
+        : this(kind, id, title, channelName, webpageUrl, thumbnailUrl, videos, [])
+    {
+    }
+}
 
 public record YtDlpSettings(
     string YtDlpPath,

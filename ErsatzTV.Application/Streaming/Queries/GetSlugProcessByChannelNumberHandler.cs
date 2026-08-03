@@ -45,7 +45,7 @@ public class GetSlugProcessByChannelNumberHandler(
             isComplete: true,
             request.Now.ToUnixTimeSeconds(),
             Option<int>.None,
-            Optional(channel.PlayoutOffset),
+            ChannelPlaybackClock.GetProcessModelOffset(channel),
             !request.HlsRealtime);
 
         return Right<BaseError, PlayoutItemProcessModel>(result);

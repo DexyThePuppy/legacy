@@ -1,0 +1,97 @@
+name: Progress Bar
+html: |
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <style>
+      html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        font-family: "SF Mono", "Menlo", "Consolas", monospace;
+      }
+      .wrap {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        box-sizing: border-box;
+        padding: 0 1.2%;
+      }
+      .times {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 0.4%;
+        color: #fff;
+        /* vw is relative to the full frame width (width_percent: 100) */
+        font-size: 2.5vw;
+        line-height: 1.15;
+        text-shadow: 0 0.1vw 0.3vw rgba(0,0,0,0.95), 0 0 0.5vw rgba(0,0,0,0.75);
+        font-variant-numeric: tabular-nums;
+      }
+      .track {
+        width: 100%;
+        height: 4px;
+        background: rgba(0,0,0,0.55);
+      }
+      .fill {
+        height: 100%;
+        width: 0%;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="times">
+        <span id="cur">0:00</span>
+        <span id="dur">0:00</span>
+      </div>
+      <div class="track"><div class="fill" id="fill"></div></div>
+    </div>
+    <script>
+      const duration = Number({{ MediaItem_DurationSeconds ?? 0 }}) || 0;
+      let position = Number({{ MediaItem_StreamSeekSeconds ?? 0 }}) || 0;
+      const fill = document.getElementById('fill');
+      const cur = document.getElementById('cur');
+      const dur = document.getElementById('dur');
+
+      function fmt(sec) {
+        sec = Math.max(0, Math.floor(sec));
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s = sec % 60;
+        if (h > 0) {
+          return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        }
+        return m + ':' + String(s).padStart(2, '0');
+      }
+
+      dur.textContent = fmt(duration);
+
+      function tick() {
+        if (duration > 0 && position > duration) position = duration;
+        const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
+        fill.style.width = pct + '%';
+        cur.textContent = fmt(position);
+        if (duration <= 0 || position < duration) {
+          position += 0.25;
+          setTimeout(tick, 250);
+        }
+      }
+      tick();
+    </script>
+  </body>
+  </html>
+location: BottomLeft
+horizontal_margin_percent: 0
+vertical_margin_percent: 0
+width_percent: 100
+height_percent: 12
+opacity_percent: 100
+z_index: 40
+capture_fps: 10
+epg_entries: 0

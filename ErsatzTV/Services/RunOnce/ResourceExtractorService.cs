@@ -145,6 +145,12 @@ public class ResourceExtractorService : BackgroundService
             "_video-index.yml",
             FileSystemLayout.GraphicsElementsHtmlTemplatesFolder,
             stoppingToken);
+
+        await ExtractGraphicsElementResource(
+            assembly,
+            "_progress-bar.yml",
+            FileSystemLayout.GraphicsElementsHtmlTemplatesFolder,
+            stoppingToken);
     }
 
     private static async Task ExtractResource(Assembly assembly, string name, CancellationToken cancellationToken)

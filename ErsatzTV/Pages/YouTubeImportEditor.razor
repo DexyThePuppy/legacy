@@ -17,14 +17,17 @@
         </MudButton>
         @if (_result is not null)
         {
-            <MudButton Class="ml-4"
-                       StartIcon="@Icons.Material.Filled.Download"
-                       Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       Disabled="@_isImporting"
-                       OnClick="@(_ => Import())">
-                @($"Import {_result.Videos.Count} Video{(_result.Videos.Count == 1 ? "" : "s")}")
-            </MudButton>
+            @if (_result.Videos.Count > 0)
+            {
+                <MudButton Class="ml-4"
+                           StartIcon="@Icons.Material.Filled.Download"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Disabled="@_isImporting"
+                           OnClick="@(_ => Import())">
+                    @($"Import {_result.Videos.Count} Video{(_result.Videos.Count == 1 ? "" : "s")}")
+                </MudButton>
+            }
             <MudButton Class="ml-2" Disabled="@_isImporting" OnClick="@(_ => Cancel())">
                 Cancel
             </MudButton>
@@ -39,7 +42,7 @@
                               Immediate="true"
                               Disabled="@_isSearching"
                               Label="Search or URL"
-                              HelperText="Search for videos, or paste a video, playlist or channel URL"
+                              HelperText="Search for channels and videos, or paste a video, playlist or channel URL"
                               OnKeyDown="@(e => { if (e.Key == "Enter") { _ = Search(); } })"
                               Style="min-width: 420px"/>
                 <MudButton Variant="Variant.Filled"
@@ -67,8 +70,65 @@
                 </MudStack>
             }
 
-            @if (_result is not null)
+            @if (_result is not null && _result.Channels.Count > 0 && _result.Videos.Count == 0)
             {
+                <MudText Typo="Typo.h6" Class="mb-2">Channels</MudText>
+                <MudText Typo="Typo.body2" Style="opacity: 0.7" Class="mb-4">
+                    Select a channel to load its videos for import.
+                </MudText>
+                <MudStack Row="true" Wrap="Wrap.Wrap" Class="mb-8" Spacing="3">
+                    @foreach (YtDlpChannelHit channel in _result.Channels)
+                    {
+                        <MudPaper Class="pa-3" Style="width: 220px; cursor: pointer;"
+                                  @onclick="@(() => SelectChannel(channel))">
+                            <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                @if (!string.IsNullOrWhiteSpace(channel.ThumbnailUrl))
+                                {
+                                    <MudImage Src="@channel.ThumbnailUrl" Width="88" Height="88" ObjectFit="ObjectFit.Cover"
+                                              Style="border-radius: 50%"/>
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.AccountCircle" Style="font-size: 88px"/>
+                                }
+                                <MudText Align="Align.Center" Style="font-weight: 600">@channel.Title</MudText>
+                            </MudStack>
+                        </MudPaper>
+                    }
+                </MudStack>
+            }
+
+            @if (_result is not null && _result.Videos.Count > 0)
+            {
+                @if (_result.Channels.Count > 0)
+                {
+                    <MudText Typo="Typo.h6" Class="mb-2">Channels</MudText>
+                    <MudText Typo="Typo.body2" Style="opacity: 0.7" Class="mb-3">
+                        Or pick a channel to import its full library instead of these search videos.
+                    </MudText>
+                    <MudStack Row="true" Wrap="Wrap.Wrap" Class="mb-6" Spacing="3">
+                        @foreach (YtDlpChannelHit channel in _result.Channels)
+                        {
+                            <MudPaper Class="pa-3" Style="width: 200px; cursor: pointer;"
+                                      @onclick="@(() => SelectChannel(channel))">
+                                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                    @if (!string.IsNullOrWhiteSpace(channel.ThumbnailUrl))
+                                    {
+                                        <MudImage Src="@channel.ThumbnailUrl" Width="72" Height="72" ObjectFit="ObjectFit.Cover"
+                                                  Style="border-radius: 50%"/>
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.AccountCircle" Style="font-size: 72px"/>
+                                    }
+                                    <MudText Align="Align.Center" Typo="Typo.body2" Style="font-weight: 600">@channel.Title</MudText>
+                                </MudStack>
+                            </MudPaper>
+                        }
+                    </MudStack>
+                    <MudText Typo="Typo.h6" Class="mb-2">Videos</MudText>
+                }
+
                 <MudPaper Class="pa-6 mb-4">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
                         <MudMenu>
@@ -241,9 +301,9 @@
             maybeResult.Match(
                 result =>
                 {
-                    if (result.Videos.Count == 0)
+                    if (result.Videos.Count == 0 && result.Channels.Count == 0)
                     {
-                        Snackbar.Add("No videos were found for that query", Severity.Warning);
+                        Snackbar.Add("No channels or videos were found for that query", Severity.Warning);
                     }
                     else
                     {
@@ -267,6 +327,17 @@
             _isSearching = false;
             StateHasChanged();
         }
+    }
+
+    private async Task SelectChannel(YtDlpChannelHit channel)
+    {
+        if (channel is null || string.IsNullOrWhiteSpace(channel.WebpageUrl))
+        {
+            return;
+        }
+
+        _input = channel.WebpageUrl;
+        await Search();
     }
 
     private void Cancel()

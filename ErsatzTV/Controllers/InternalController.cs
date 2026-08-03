@@ -73,6 +73,31 @@ public class InternalController : StreamingControllerBase
     [HttpGet("ffmpeg/stream/{channelNumber}")]
     public Task<IActionResult> GetStream(string channelNumber) => GetTsLegacyStream(channelNumber);
 
+    [HttpGet("ffmpeg/preview/{channelNumber}/overlays.html")]
+    [Produces("text/html")]
+    public async Task<IActionResult> GetChannelPreviewOverlays(
+        string channelNumber,
+        CancellationToken cancellationToken)
+    {
+        string requestBase = $"{Request.Scheme}://{Request.Host}{Request.PathBase}".TrimEnd('/');
+        Either<BaseError, string> result = await _mediator.Send(
+            new GetChannelRawPreviewOverlays(channelNumber, requestBase),
+            cancellationToken);
+
+        foreach (BaseError error in result.LeftToSeq())
+        {
+            return NotFound(error.Value);
+        }
+
+        foreach (string html in result.RightToSeq())
+        {
+            Response.Headers.CacheControl = "no-cache, no-store";
+            return Content(html, "text/html; charset=utf-8");
+        }
+
+        return NotFound();
+    }
+
     [HttpGet("ffmpeg/preview/{channelNumber}")]
     public async Task GetChannelPreview(
         string channelNumber,

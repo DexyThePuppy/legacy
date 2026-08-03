@@ -112,6 +112,7 @@
         <EmbeddedResource Include="Resources\Templates\GraphicsElements\_lower-third.yml" />
         <EmbeddedResource Include="Resources\Templates\GraphicsElements\_up-next.yml" />
         <EmbeddedResource Include="Resources\Templates\GraphicsElements\_video-index.yml" />
+        <EmbeddedResource Include="Resources\Templates\GraphicsElements\_progress-bar.yml" />
         <EmbeddedResource Update="Locals\Shared\MainLayout.resx">
           <Generator>ResXFileCodeGenerator</Generator>
           <LastGenOutput>MainLayout.Designer.cs</LastGenOutput>

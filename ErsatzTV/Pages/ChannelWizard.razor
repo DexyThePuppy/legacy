@@ -405,7 +405,7 @@
         uri.Path = $"/iptv/channel/{_createdNumber}.m3u8";
         uri.Query = "?mode=segmenter";
 
-        Uri rawPreview = NavigationManager.ToAbsoluteUri($"ffmpeg/preview/{_createdNumber}?fps=60");
+        Uri rawPreview = NavigationManager.ToAbsoluteUri($"ffmpeg/preview/{_createdNumber}?fps=30");
         if (Core.Settings.UiPort != Core.Settings.StreamingPort)
         {
             rawPreview = new UriBuilder(rawPreview) { Port = Core.Settings.UiPort }.Uri;
@@ -414,7 +414,8 @@
         var parameters = new DialogParameters
         {
             { "StreamUri", uri.ToString() },
-            { "RawPreviewUri", rawPreview.ToString() }
+            { "RawPreviewUri", rawPreview.ToString() },
+            { "ChannelNumber", _createdNumber }
         };
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraLarge };
         await Dialog.ShowAsync<ChannelPreviewDialog>("Channel Preview", parameters, options);

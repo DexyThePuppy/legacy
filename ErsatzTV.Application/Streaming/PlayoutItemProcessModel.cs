@@ -25,8 +25,8 @@ public class PlayoutItemProcessModel
         MediaItemId = mediaItemId;
         IsWorkingAhead = isWorkingAhead;
 
-        // undo the offset applied in FFmpegProcessHandler
-        // so we don't continually walk backward/forward in time by the offset amount
+        // undo GetEffectiveNow offsets (PlaybackControlOffset + PlayoutOffset) applied in FFmpegProcessHandler
+        // so HLS session buffering compares Until against wall clock
         foreach (TimeSpan offset in playoutOffset)
         {
             foreach (long key in SegmentKey)

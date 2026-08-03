@@ -44,6 +44,7 @@ public class HlsSessionWorker : IHlsSessionWorker
     private CancellationTokenSource _cancellationTokenSource;
     private CancellationTokenSource _itemCts;
     private volatile bool _isPlaybackPaused;
+    private DateTimeOffset _lastPauseSync = DateTimeOffset.MinValue;
     private string _channelNumber;
     private DateTimeOffset _channelStart;
     private int _discontinuitySequence;
@@ -275,10 +276,14 @@ public class HlsSessionWorker : IHlsSessionWorker
                     cancellationToken);
             }
 
+            // Channel may already be paused in DB (e.g. app restart). Without this,
+            // effective seek is frozen and normal Transcode loops the same content.
+            await SyncPausedStateFromDatabase(cancellationToken);
+
             bool initialWorkAhead = Volatile.Read(ref _workAheadCount) < await GetWorkAheadLimit(cancellationToken);
             _state = initialWorkAhead ? HlsSessionState.SeekAndWorkAhead : HlsSessionState.SeekAndRealtime;
 
-            if (!await Transcode(!initialWorkAhead, cancellationToken))
+            if (!_isPlaybackPaused && !await Transcode(!initialWorkAhead, cancellationToken))
             {
                 return;
             }
@@ -293,6 +298,8 @@ public class HlsSessionWorker : IHlsSessionWorker
                         return;
                     }
                 }
+
+                await SyncPausedStateFromDatabase(cancellationToken);
 
                 if (_isPlaybackPaused)
                 {
@@ -756,12 +763,45 @@ public class HlsSessionWorker : IHlsSessionWorker
         return false;
     }
 
+    private async Task SyncPausedStateFromDatabase(CancellationToken cancellationToken)
+    {
+        // Avoid hammering playout lookups on the hot HLS loop.
+        if (DateTimeOffset.Now - _lastPauseSync < TimeSpan.FromSeconds(2))
+        {
+            return;
+        }
+
+        _lastPauseSync = DateTimeOffset.Now;
+
+        Either<BaseError, ChannelPreviewSource> maybeSource =
+            await _mediator.Send(new GetChannelPreviewSource(_channelNumber), cancellationToken);
+
+        foreach (ChannelPreviewSource source in maybeSource.RightToSeq())
+        {
+            if (source.IsPaused == _isPlaybackPaused)
+            {
+                return;
+            }
+
+            _logger.LogInformation(
+                "Syncing HLS pause state for channel {Channel} to paused={Paused}",
+                _channelNumber,
+                source.IsPaused);
+
+            _isPlaybackPaused = source.IsPaused;
+            if (!source.IsPaused)
+            {
+                _state = HlsSessionState.PlayoutUpdated;
+            }
+        }
+    }
+
     private async Task RunPausedFreezeAsync(CancellationToken cancellationToken)
     {
         Touch(Option<string>.None);
 
-        // Pause freezes the *video* (still frame + silent audio) while the encoder
-        // keeps producing profile-compatible HLS segments so the livestream stays live.
+        // Freeze by encoding a still image (not a looping source file). Encoder keeps
+        // producing profile-compatible HLS so the livestream stays live on one frame.
         Option<string> maybeFfmpegPath =
             await _configElementRepository.GetValue<string>(ConfigElementKey.FFmpegPath, cancellationToken);
         if (maybeFfmpegPath.IsNone)
@@ -806,6 +846,15 @@ public class HlsSessionWorker : IHlsSessionWorker
         }
 
         FFmpegProfileViewModel profile = maybeProfile.Head();
+        string ffmpegPath = maybeFfmpegPath.Head();
+        string framePath = Path.Combine(_workingDirectory, "pause_frame.jpg");
+
+        if (!await ExtractPauseFrameAsync(ffmpegPath, source, framePath, cancellationToken))
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            return;
+        }
+
         string videoEncoder = ResolvePauseVideoEncoder(profile);
         string audioEncoder = ResolvePauseAudioEncoder(profile);
         int width = Math.Max(2, profile.Resolution.Width);
@@ -838,27 +887,19 @@ public class HlsSessionWorker : IHlsSessionWorker
         {
             "-hide_banner",
             "-nostats",
-            "-loglevel", "error"
-        };
-
-        if (!source.IsLive && source.Seek > TimeSpan.Zero)
-        {
-            args.Add("-ss");
-            args.Add(source.Seek.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture));
-        }
-
-        args.AddRange(
-        [
-            "-i", source.Path,
+            "-loglevel", "error",
+            "-loop", "1",
+            "-framerate", fps.ToString(CultureInfo.InvariantCulture),
+            "-i", framePath,
             "-f", "lavfi",
             "-i", $"anullsrc=channel_layout={channelLayout}:sample_rate={sampleRate}",
             "-map", "0:v:0",
             "-map", "1:a:0",
             "-vf",
-            $"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,loop=loop=-1:size=1:start=0,setpts=N/{fps}/TB,fps={fps},format=yuv420p",
+            $"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
             "-r", fps.ToString(CultureInfo.InvariantCulture),
             "-c:v", videoEncoder
-        ]);
+        };
 
         if (profile.VideoBitrate > 0)
         {
@@ -906,7 +947,6 @@ public class HlsSessionWorker : IHlsSessionWorker
             playlistPath
         ]);
 
-        string ffmpegPath = maybeFfmpegPath.Head();
         Command process = Cli.Wrap(ffmpegPath)
             .WithArguments(args)
             .WithWorkingDirectory(_workingDirectory)
@@ -931,12 +971,27 @@ public class HlsSessionWorker : IHlsSessionWorker
                 Touch(Option<string>.None);
                 _transcodedUntil = DateTimeOffset.Now.AddSeconds(OutputFormatHls.SegmentSeconds);
                 _hasWrittenSegments = true;
-                await Task.WhenAny(encodeTask.Task, Task.Delay(TimeSpan.FromSeconds(2), itemToken));
+                try
+                {
+                    await Task.WhenAny(encodeTask.Task, Task.Delay(TimeSpan.FromSeconds(2), itemToken));
+                }
+                catch (Exception ex) when (ex is TaskCanceledException or OperationCanceledException)
+                {
+                    break;
+                }
             }
 
             try
             {
-                await encodeTask;
+                CommandResult result = await encodeTask;
+                if (result.ExitCode != 0 && _isPlaybackPaused)
+                {
+                    _logger.LogWarning(
+                        "Pause freeze encode exited {ExitCode} for channel {Channel}",
+                        result.ExitCode,
+                        _channelNumber);
+                    await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+                }
             }
             catch (Exception ex) when (ex is TaskCanceledException or OperationCanceledException)
             {
@@ -955,6 +1010,68 @@ public class HlsSessionWorker : IHlsSessionWorker
                 _channelNumber,
                 ex.Message);
             await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+        }
+    }
+
+    private async Task<bool> ExtractPauseFrameAsync(
+        string ffmpegPath,
+        ChannelPreviewSource source,
+        string framePath,
+        CancellationToken cancellationToken)
+    {
+        var args = new List<string>
+        {
+            "-hide_banner",
+            "-nostats",
+            "-loglevel", "error",
+            "-y"
+        };
+
+        if (!source.IsLive && source.Seek > TimeSpan.Zero)
+        {
+            args.Add("-ss");
+            args.Add(source.Seek.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture));
+        }
+
+        args.AddRange(
+        [
+            "-i", source.Path,
+            "-an",
+            "-frames:v", "1",
+            "-q:v", "2",
+            framePath
+        ]);
+
+        try
+        {
+            CommandResult result = await Cli.Wrap(ffmpegPath)
+                .WithArguments(args)
+                .WithValidation(CommandResultValidation.None)
+                .ExecuteAsync(cancellationToken);
+
+            if (result.ExitCode != 0 || !_fileSystem.File.Exists(framePath))
+            {
+                _logger.LogWarning(
+                    "Pause frame extract failed for channel {Channel} (exit {ExitCode})",
+                    _channelNumber,
+                    result.ExitCode);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is TaskCanceledException or OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Pause frame extract error for channel {Channel}: {Message}",
+                _channelNumber,
+                ex.Message);
+            return false;
         }
     }
 

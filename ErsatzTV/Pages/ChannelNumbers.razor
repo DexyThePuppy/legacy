@@ -7,7 +7,7 @@
 @inject ILogger<ChannelNumbers> Logger
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
         <div style="display: flex; flex-direction: row; margin-bottom: auto; margin-top: auto; width: 100%; align-items: center" class="ml-6 mr-6">
             <div class="d-none d-md-flex">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="@SaveChannels">
@@ -28,8 +28,7 @@
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Edit Channel Numbers</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Edit Channel Numbers"/>
             <Sortable TItem="ChannelSortViewModel" Items="_channels" OnUpdate="OnUpdate">
                 <MudPaper Class="@($"pa-2 ma-2 ")"
                           Style="@($"max-width: 500px; {(context.HasChanged ? "background-color: var(--mud-palette-dark-lighten)" : "")}")">

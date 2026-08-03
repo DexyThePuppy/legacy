@@ -1,0 +1,55 @@
+<div @onkeydown="@OnKeyDown">
+    <MudDialog>
+        <DialogContent>
+            <MudContainer>
+                <MudText>
+                    Delete YouTube import <strong>@EntityName</strong>? This cannot be undone.
+                </MudText>
+                <MudRadioGroup T="bool" @bind-Value="_deleteLinkedStation" Class="mt-4">
+                    <MudRadio T="bool" Value="false" Dense="true">Media only (keep channel station)</MudRadio>
+                    <MudRadio T="bool" Value="true" Dense="true">Media and linked channel station</MudRadio>
+                </MudRadioGroup>
+                @if (_deleteLinkedStation)
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
+                        The linked channel, playout, schedule, and smart collection will also be removed when possible.
+                    </MudAlert>
+                }
+            </MudContainer>
+        </DialogContent>
+        <DialogActions>
+            <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+            <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Submit">Delete</MudButton>
+        </DialogActions>
+    </MudDialog>
+</div>
+
+@code {
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public string EntityName { get; set; }
+
+    [Parameter]
+    public bool HasLinkedStation { get; set; }
+
+    private bool _deleteLinkedStation;
+
+    protected override void OnParametersSet()
+    {
+        _deleteLinkedStation = HasLinkedStation;
+    }
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok(_deleteLinkedStation));
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Code is "Enter" or "NumpadEnter")
+        {
+            Submit();
+        }
+    }
+}

@@ -18,10 +18,7 @@ public class DeleteProgramScheduleHandler : IRequestHandler<DeleteProgramSchedul
         CancellationToken cancellationToken)
     {
         await using TvContext dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
-        Validation<BaseError, ProgramSchedule> validation = await ProgramScheduleMustExist(
-            dbContext,
-            request,
-            cancellationToken);
+        Validation<BaseError, ProgramSchedule> validation = await Validate(dbContext, request, cancellationToken);
         return await validation.Apply(ps => DoDeletion(dbContext, ps));
     }
 
@@ -31,11 +28,28 @@ public class DeleteProgramScheduleHandler : IRequestHandler<DeleteProgramSchedul
         return dbContext.SaveChangesAsync().ToUnit();
     }
 
-    private static Task<Validation<BaseError, ProgramSchedule>> ProgramScheduleMustExist(
+    private static async Task<Validation<BaseError, ProgramSchedule>> Validate(
         TvContext dbContext,
         DeleteProgramSchedule request,
-        CancellationToken cancellationToken) =>
-        dbContext.ProgramSchedules
-            .SelectOneAsync(ps => ps.Id, ps => ps.Id == request.ProgramScheduleId, cancellationToken)
-            .Map(o => o.ToValidation<BaseError>($"ProgramSchedule {request.ProgramScheduleId} does not exist."));
+        CancellationToken cancellationToken)
+    {
+        Option<ProgramSchedule> maybeSchedule = await dbContext.ProgramSchedules
+            .SelectOneAsync(ps => ps.Id, ps => ps.Id == request.ProgramScheduleId, cancellationToken);
+
+        foreach (ProgramSchedule schedule in maybeSchedule)
+        {
+            int playoutCount = await dbContext.Playouts
+                .CountAsync(p => p.ProgramScheduleId == schedule.Id, cancellationToken);
+
+            if (playoutCount > 0)
+            {
+                return BaseError.New(
+                    $"Schedule '{schedule.Name}' is used by {playoutCount} playout(s). Remove or reassign those playouts before deleting the schedule.");
+            }
+
+            return schedule;
+        }
+
+        return BaseError.New($"ProgramSchedule {request.ProgramScheduleId} does not exist.");
+    }
 }

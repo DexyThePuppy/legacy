@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @using System.Reflection
 @using MudBlazor
 @namespace ErsatzTV.Pages
@@ -102,6 +102,91 @@
             var hls = $('#video').data('hls');
             hls && hls.destroy();
         }
+
+        window.overlayTest = {
+            ping: function () { return true; },
+            setSrcdoc: function (elementId, html) {
+                var el = document.getElementById(elementId);
+                if (!el) {
+                    return;
+                }
+                var content = html || '';
+                // Full-content hash so mid-document edits always refresh the preview.
+                var hash = String(content.length) + ':';
+                var h = 2166136261;
+                for (var i = 0; i < content.length; i++) {
+                    h ^= content.charCodeAt(i);
+                    h = Math.imul(h, 16777619);
+                }
+                hash += (h >>> 0).toString(16);
+                if (el.dataset.srcdocHash === hash) {
+                    return;
+                }
+                el.dataset.srcdocHash = hash;
+                el.srcdoc = content;
+            },
+            slideVideoIndex: function (elementId, item, direction) {
+                var el = document.getElementById(elementId);
+                if (!el || !el.contentWindow) {
+                    return Promise.resolve(false);
+                }
+
+                return new Promise(function (resolve) {
+                    var settled = false;
+                    function finish(ok) {
+                        if (settled) return;
+                        settled = true;
+                        window.removeEventListener('message', onAck);
+                        resolve(!!ok);
+                    }
+
+                    function onAck(event) {
+                        if (event && event.data && event.data.type === 'video-index-slide-ack') {
+                            finish(true);
+                        }
+                    }
+
+                    window.addEventListener('message', onAck);
+                    // Index changes re-appear first, then slide to the new item.
+                    el.contentWindow.postMessage({
+                        type: 'video-index-advance',
+                        direction: direction === 'prev' ? 'prev' : 'next',
+                        item: item || null
+                    }, '*');
+                    window.setTimeout(function () { finish(false); }, 120);
+                });
+            },
+            setVisibility: function (elementId, visible, replay) {
+                var el = document.getElementById(elementId);
+                if (!el || !el.contentWindow) {
+                    return Promise.resolve(false);
+                }
+
+                return new Promise(function (resolve) {
+                    var settled = false;
+                    function finish(ok) {
+                        if (settled) return;
+                        settled = true;
+                        window.removeEventListener('message', onAck);
+                        resolve(!!ok);
+                    }
+
+                    function onAck(event) {
+                        if (event && event.data && event.data.type === 'video-index-visibility-ack') {
+                            finish(true);
+                        }
+                    }
+
+                    window.addEventListener('message', onAck);
+                    el.contentWindow.postMessage({
+                        type: 'video-index-visibility',
+                        visible: !!visible,
+                        replay: !!replay
+                    }, '*');
+                    window.setTimeout(function () { finish(false); }, 120);
+                });
+            }
+        };
     </script>
 </head>
 <body>

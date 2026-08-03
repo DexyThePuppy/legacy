@@ -9,8 +9,8 @@
 @inject IMediator Mediator
 
 <MudForm @ref="_form" Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" StartIcon="@Icons.Material.Filled.Save" OnClick="@(_ => HandleSubmitAsync())">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="@(_ => HandleSubmitAsync())">
             Save Overlay
         </MudButton>
         <MudButton Variant="Variant.Text" Class="ml-4" Href="overlays">
@@ -23,8 +23,7 @@
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8" Style="margin-bottom: 288px">
-            <MudText Typo="Typo.h5" Class="mb-2">@(IsEdit ? "Edit Overlay" : "Add Overlay")</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="@((IsEdit ? "Edit Overlay" : "Add Overlay"))"/>
             @if (!_canUseForm)
             {
                 <MudAlert Severity="Severity.Info" Class="mb-6">

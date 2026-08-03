@@ -1,4 +1,4 @@
-﻿@page "/blocks/{Id:int}"
+@page "/blocks/{Id:int}"
 @using ErsatzTV.Application.Graphics
 @using ErsatzTV.Application.MediaCollections
 @using ErsatzTV.Application.MediaItems
@@ -13,7 +13,7 @@
 @inject IMediator Mediator
 
 <MudForm Style="max-height: 100%">
-<MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+<MudPaper Class="page-toolbar" Elevation="0" Square="true">
     <div style="display: flex; flex-direction: row; margin-bottom: auto; margin-top: auto; width: 100%; align-items: center" class="ml-6 mr-6">
         <div class="d-none d-md-flex">
             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@SaveChanges" StartIcon="@Icons.Material.Filled.Save">
@@ -38,8 +38,7 @@
 </MudPaper>
 <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-<MudText Typo="Typo.h5" Class="mb-2">Block</MudText>
-<MudDivider Class="mb-6"/>
+<PageHeader Title="Block"/>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Block Group Name</MudText>
@@ -89,8 +88,7 @@
         <MudSelectItem Value="BlockStopScheduling.AfterDurationEnd">After Duration End</MudSelectItem>
     </MudSelect>
 </MudStack>
-<MudText Typo="Typo.h5" Class="mt-10 mb-2">Block Items</MudText>
-<MudDivider Class="mb-6"/>
+<PageHeader Title="Block Items" Class="mt-10"/>
 <MudTable Class="mt-6" Hover="true" Items="_block.Items.OrderBy(i => i.Index)" Dense="true" @bind-SelectedItem="_selectedItem" RowClassFunc="@SelectedRowClassFunc">
     <ColGroup>
         <MudHidden Breakpoint="Breakpoint.Xs">
@@ -147,8 +145,7 @@
 </MudTable>
 @if (_selectedItem is not null)
 {
-    <MudText Typo="Typo.h5" Class="mt-10 mb-2">Block Item</MudText>
-    <MudDivider Class="mb-6"/>
+    <PageHeader Title="Block Item" Class="mt-10"/>
     <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
         <div class="d-flex">
             <MudText>Collection Type</MudText>
@@ -342,8 +339,7 @@
 }
 else if (_previewItems != null)
 {
-    <MudText Typo="Typo.h5" Class="mt-10 mb-2">Preview</MudText>
-    <MudDivider Class="mb-6"/>
+    <PageHeader Title="Preview" Class="mt-10"/>
     <MudTable Hover="true"
               Dense="true"
               Items="_previewItems">

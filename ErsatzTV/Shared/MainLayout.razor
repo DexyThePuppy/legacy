@@ -7,32 +7,41 @@
 @using ErsatzTV.Core.Interfaces.Search
 @using ErsatzTV.Core.Notifications
 @using ErsatzTV.Extensions
+@using ErsatzTV.Theme
 @using MediatR.Courier
-@implements IDisposable
+@using MudBlazor.Services
+@implements IBrowserViewportObserver
+@implements IAsyncDisposable
 @inject NavigationManager NavigationManager
 @inject IMediator Mediator
 @inject SystemStartup SystemStartup
-@inject ISearchTargets SearchTargets;
+@inject ISearchTargets SearchTargets
 @inject ICourier Courier
-@inject IHealthCheckService HealthCheckService;
-@inject IStringLocalizer<ErsatzTV.Locals.Shared.MainLayout> StringLocalizer;
+@inject IHealthCheckService HealthCheckService
+@inject IBrowserViewportService BrowserViewportService
+@inject IStringLocalizer<ErsatzTV.Locals.Shared.MainLayout> StringLocalizer
 
-<MudThemeProvider Theme="ErsatzTvTheme" IsDarkMode="_isDarkMode"/>
+<MudThemeProvider Theme="_theme" IsDarkMode="_isDarkMode"/>
 <MudDialogProvider BackdropClick="false"/>
 <MudSnackbarProvider/>
 <MudPopoverProvider/>
 
-<MudLayout @onclick="@(() => _isOpen = false)" Class="@(_isDarkMode ? "d-flex d-flex-column ersatztv-dark" : "d-flex d-flex-column ersatztv-light")" Style="height: 100vh">
-    <MudAppBar Elevation="1" Class="app-bar">
+<MudLayout @onclick="@(() => _isOpen = false)"
+           Class="@(_isDarkMode ? "d-flex d-flex-column ersatztv-dark" : "d-flex d-flex-column ersatztv-light")"
+           Style="height: 100vh">
+    <MudAppBar Elevation="0" Class="app-bar" Dense="false">
         @if (SystemStartup.IsDatabaseReady && SystemStartup.IsSearchIndexReady)
         {
-            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer"/>
+            <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                           Color="Color.Inherit"
+                           Edge="Edge.Start"
+                           OnClick="@ToggleDrawer"
+                           title="Toggle navigation"/>
         }
-        <div style="min-width: 180px" class="ml-1 d-none d-md-flex align-center">
-            <a href="" class="d-flex">
-                <img src="images/ersatztv.png?v=2" alt="ErsatzTV"/>
-            </a>
-        </div>
+        <a href="" class="brand-lockup ml-1">
+            <img src="images/ersatztv.png?v=2" alt="ErsatzTV"/>
+            <span class="brand-wordmark mud-text-primary d-none d-md-inline">ErsatzTV</span>
+        </a>
         @if (SystemStartup.IsDatabaseReady && SystemStartup.IsSearchIndexReady)
         {
             <div class="search-form">
@@ -47,18 +56,25 @@
                                   @onclick="@(() => _isOpen = true)"
                                   OnKeyUp="@OnKeyUp">
                     </MudTextField>
-                    <MudPopover Open="@_isOpen" MaxHeight="300" AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.TopCenter" RelativeWidth="DropdownWidth.Relative">
+                    <MudPopover Open="@_isOpen"
+                                MaxHeight="320"
+                                AnchorOrigin="Origin.BottomCenter"
+                                TransformOrigin="Origin.TopCenter"
+                                RelativeWidth="DropdownWidth.Relative"
+                                Class="search-popover">
                         @if (!string.IsNullOrWhiteSpace(_query) && _query.Length >= 3)
                         {
-                            var matches = _searchTargets.Where(s => s.Name.Contains(_query, StringComparison.CurrentCultureIgnoreCase)).ToList();
-                            if (matches.Any())
+                            var matches = _searchTargets
+                                .Where(s => s.Name.Contains(_query, StringComparison.CurrentCultureIgnoreCase))
+                                .ToList();
+                            if (matches.Count > 0)
                             {
                                 <MudList T="SearchTargetViewModel" ReadOnly="false" Dense="true">
                                     @foreach (SearchTargetViewModel searchTarget in matches)
                                     {
                                         <MudListItem @key="@searchTarget" OnClick="@(() => NavigateTo(searchTarget))">
-                                            <MudText Typo="Typo.body1">@searchTarget.Name</MudText>
-                                            <MudText Typo="Typo.subtitle1" Class="mud-text-disabled">
+                                            <MudText Typo="Typo.subtitle1">@searchTarget.Name</MudText>
+                                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
                                                 @(
                                                 searchTarget.Kind switch
                                                 {
@@ -82,19 +98,26 @@
                 </EditForm>
             </div>
         }
-        <div class="flex-grow-1 d-none d-md-flex"></div>
-        <div style="align-items: center; display: flex;" class="d-none d-md-flex">
+        <div class="flex-grow-1"></div>
+        <div class="action-cluster d-none d-md-flex">
             @if (SystemStartup.IsDatabaseReady && SystemStartup.IsSearchIndexReady)
             {
                 @if (BuildConfiguration != "release")
                 {
-                    <MudText Color="Color.Warning" Class="mx-4">@System.Environment.MachineName</MudText>
+                    <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled" Size="Size.Small">
+                        @System.Environment.MachineName
+                    </MudChip>
                 }
-                <MudLink Color="Color.Info" Href="iptv/channels.m3u" Target="_blank" Underline="Underline.None">@StringLocalizer["ButtonM3U"]</MudLink>
-                <MudLink Color="Color.Info" Href="iptv/xmltv.xml" Target="_blank" Class="mx-4" Underline="Underline.None">@StringLocalizer["ButtonXmltv"]</MudLink>
-                <MudLink Color="Color.Primary" Href="docs" Target="_blank" Underline="Underline.None" Style="font-weight: bold">@StringLocalizer["ButtonApi"]</MudLink>
+                <MudLink Color="Color.Info" Href="iptv/channels.m3u" Target="_blank" Underline="Underline.None" Class="action-chip-link">
+                    @StringLocalizer["ButtonM3U"]
+                </MudLink>
+                <MudLink Color="Color.Info" Href="iptv/xmltv.xml" Target="_blank" Underline="Underline.None" Class="action-chip-link">
+                    @StringLocalizer["ButtonXmltv"]
+                </MudLink>
+                <MudLink Color="Color.Primary" Href="docs" Target="_blank" Underline="Underline.None" Class="action-chip-link">
+                    @StringLocalizer["ButtonApi"]
+                </MudLink>
             }
-            @* <MudLink Color="Color.Info" Href="/swagger" Target="_blank" Class="mr-4" Underline="Underline.None">API</MudLink> *@
             <MudTooltip Text="@StringLocalizer["ButtonDocumentation"]">
                 <MudIconButton Icon="@Icons.Material.Filled.Help" Color="Color.Primary" Href="https://ersatztv.org" Target="_blank"/>
             </MudTooltip>
@@ -115,98 +138,202 @@
     </MudAppBar>
     @if (SystemStartup.IsDatabaseReady && SystemStartup.IsSearchIndexReady)
     {
-        <MudDrawer @bind-Open="@_drawerIsOpen" Elevation="2" ClipMode="DrawerClipMode.Always">
-            <MudNavMenu>
-                <MudNavLink Href="channels">@StringLocalizer["ButtonChannels"]</MudNavLink>
-                <MudNavLink Href="ffmpeg">@StringLocalizer["ButtonFFmpegProfiles"]</MudNavLink>
-                <MudNavLink Href="overlays">@StringLocalizer["ButtonOverlays"]</MudNavLink>
-                <MudNavGroup Title="@StringLocalizer["ButtonMediaSources"]">
-                    <MudNavLink Href="media/sources/local">@StringLocalizer["ButtonMediaSourcesLocal"]</MudNavLink>
-                    <MudNavLink Href="media/sources/emby">@StringLocalizer["ButtonMediaSourcesEmby"]</MudNavLink>
-                    <MudNavLink Href="media/sources/jellyfin">@StringLocalizer["ButtonMediaSourcesJellyfin"]</MudNavLink>
-                    <MudNavLink Href="media/sources/plex">@StringLocalizer["ButtonMediaSourcesPlex"]</MudNavLink>
-                    <MudNavLink Href="media/sources/youtube">@StringLocalizer["ButtonMediaSourcesYouTube"]</MudNavLink>
+        <MudDrawer @bind-Open="@_drawerIsOpen"
+                   Elevation="0"
+                   ClipMode="DrawerClipMode.Always"
+                   Variant="@(_isMobile ? DrawerVariant.Temporary : DrawerVariant.Mini)"
+                   OpenMiniOnHover="false"
+                   Class="nav-drawer">
+            <MudNavMenu Bordered="false" Color="Color.Primary" Dense="false">
+                @* Primary *@
+                <MudNavLink Href="" Icon="@Icons.Material.Filled.Home" Match="NavLinkMatch.All">
+                    @StringLocalizer["ButtonHome"]
+                </MudNavLink>
+                <MudNavLink Href="channels" Icon="@Icons.Material.Filled.Tv" Match="NavLinkMatch.Prefix">
+                    @StringLocalizer["ButtonChannels"]
+                </MudNavLink>
+                <MudNavGroup Title="@StringLocalizer["ButtonLibrary"]" Icon="@Icons.Material.Filled.VideoLibrary" Expanded="false">
+                    <MudNavLink Href="media" Icon="@Icons.Material.Filled.Dashboard" Match="NavLinkMatch.All">
+                        @StringLocalizer["ButtonLibraryHub"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/sources/local" Icon="@Icons.Material.Filled.Folder">
+                        @StringLocalizer["ButtonMediaSourcesLocal"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/sources/plex" Icon="@Icons.Material.Filled.Dns">
+                        @StringLocalizer["ButtonMediaSourcesPlex"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/sources/jellyfin" Icon="@Icons.Material.Filled.Dns">
+                        @StringLocalizer["ButtonMediaSourcesJellyfin"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/sources/emby" Icon="@Icons.Material.Filled.Dns">
+                        @StringLocalizer["ButtonMediaSourcesEmby"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/sources/youtube" Icon="@Icons.Material.Filled.SmartDisplay">
+                        @StringLocalizer["ButtonMediaSourcesYouTube"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/libraries" Icon="@Icons.Material.Filled.LibraryBooks">
+                        @StringLocalizer["ButtonMediaLibraries"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/tv/shows" Icon="@Icons.Material.Filled.LiveTv">
+                        @StringLocalizer["ButtonMediaTvShows"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/movies" Icon="@Icons.Material.Filled.Movie">
+                        @StringLocalizer["ButtonMediaMovies"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/music/artists" Icon="@Icons.Material.Filled.Album">
+                        @StringLocalizer["ButtonMediaMusic"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/music/videos" Icon="@Icons.Material.Filled.MusicVideo">
+                        @StringLocalizer["ButtonMediaMusicVideos"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/other/videos" Icon="@Icons.Material.Filled.VideoFile">
+                        @StringLocalizer["ButtonMediaOtherVideos"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/music/songs" Icon="@Icons.Material.Filled.AudioFile">
+                        @StringLocalizer["ButtonMediaSongs"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/images" Icon="@Icons.Material.Filled.Image">
+                        @StringLocalizer["ButtonMediaImages"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/remote/streams" Icon="@Icons.Material.Filled.Stream">
+                        @StringLocalizer["ButtonMediaRemoteStreams"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/trash" Icon="@Icons.Material.Filled.Delete">
+                        @StringLocalizer["ButtonMediaMissing"]
+                    </MudNavLink>
                 </MudNavGroup>
-                <MudNavGroup Title="@StringLocalizer["ButtonMedia"]">
-                    <MudNavLink Href="media/libraries">@StringLocalizer["ButtonMediaLibraries"]</MudNavLink>
-                    <MudNavLink Href="media/trash">@StringLocalizer["ButtonMediaTrash"]</MudNavLink>
-                    <MudNavLink Href="media/tv/shows">@StringLocalizer["ButtonMediaTvShows"]</MudNavLink>
-                    <MudNavLink Href="media/movies">@StringLocalizer["ButtonMediaMovies"]</MudNavLink>
-                    <MudNavLink Href="media/music/artists">@StringLocalizer["ButtonMediaMusic"]</MudNavLink>
-                    <MudNavLink Href="media/other/videos">@StringLocalizer["ButtonMediaOtherVideos"]</MudNavLink>
-                    <MudNavLink Href="media/music/songs">@StringLocalizer["ButtonMediaSongs"]</MudNavLink>
-                    <MudNavLink Href="media/browser/images">@StringLocalizer["ButtonMediaImages"]</MudNavLink>
-                    <MudNavLink Href="media/remote/streams">@StringLocalizer["ButtonMediaRemoteStreams"]</MudNavLink>
+                <MudNavGroup Title="@StringLocalizer["ButtonLists"]" Icon="@Icons.Material.Filled.PlaylistPlay" Expanded="false">
+                    <MudNavLink Href="lists" Icon="@Icons.Material.Filled.Dashboard" Match="NavLinkMatch.All">
+                        @StringLocalizer["ButtonLists"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/collections" Icon="@Icons.Material.Filled.Collections">
+                        @StringLocalizer["ButtonListsManualCollections"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/smart-collections" Icon="@Icons.Material.Filled.AutoAwesome">
+                        @StringLocalizer["ButtonListsSmartCollections"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/playlists" Icon="@Icons.Material.Filled.QueueMusic">
+                        @StringLocalizer["ButtonListsPlaylists"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/multi-collections" Icon="@Icons.Material.Filled.LibraryAdd">
+                        @StringLocalizer["ButtonListsMultiCollections"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/rerun-collections" Icon="@Icons.Material.Filled.Replay">
+                        @StringLocalizer["ButtonListsRerunCollections"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/trakt/lists" Icon="@Icons.Material.Filled.FormatListBulleted">
+                        @StringLocalizer["ButtonListsTraktLists"]
+                    </MudNavLink>
+                    <MudNavLink Href="media/filler/presets" Icon="@Icons.Material.Filled.MoreTime">
+                        @StringLocalizer["ButtonListsFillerPresets"]
+                    </MudNavLink>
                 </MudNavGroup>
-                <MudNavGroup Title="@StringLocalizer["ButtonLists"]">
-                    <MudNavLink Href="media/collections">@StringLocalizer["ButtonListsManualCollections"]</MudNavLink>
-                    <MudNavLink Href="media/smart-collections">@StringLocalizer["ButtonListsSmartCollections"]</MudNavLink>
-                    <MudNavLink Href="media/multi-collections">@StringLocalizer["ButtonListsMultiCollections"]</MudNavLink>
-                    <MudNavLink Href="media/rerun-collections">@StringLocalizer["ButtonListsRerunCollections"]</MudNavLink>
-                    <MudNavLink Href="media/playlists">@StringLocalizer["ButtonListsPlaylists"]</MudNavLink>
-                    <MudNavLink Href="media/trakt/lists">@StringLocalizer["ButtonListsTraktLists"]</MudNavLink>
-                    <MudNavLink Href="media/filler/presets">@StringLocalizer["ButtonListsFillerPresets"]</MudNavLink>
-                </MudNavGroup>
-                <MudNavGroup>
-                    <TitleContent>
-                        @if (_playoutWarnings > 0)
-                        {
-                            <div style="align-items: center; display: flex">
-                                @StringLocalizer["ButtonScheduling"]
-                                <MudIcon Color="@Color.Warning" Icon="@Icons.Material.Filled.Warning" Class="mx-2"/>
-                            </div>
-                        }
-                        else
-                        {
-                            @StringLocalizer["ButtonScheduling"]
-                        }
-                    </TitleContent>
-                    <ChildContent>
-                        <MudNavLink Href="schedules">@StringLocalizer["ButtonSchedulingSchedules"]</MudNavLink>
-                        <MudNavLink Href="blocks">@StringLocalizer["ButtonSchedulingBlocks"]</MudNavLink>
-                        <MudNavLink Href="templates">@StringLocalizer["ButtonSchedulingTemplates"]</MudNavLink>
-                        <MudNavLink Href="decos">@StringLocalizer["ButtonSchedulingDecos"]</MudNavLink>
-                        <MudNavLink Href="deco-templates">@StringLocalizer["ButtonSchedulingDecoTemplates"]</MudNavLink>
-                        <MudNavLink Href="playouts">
+
+                @* Advanced (collapsed) *@
+                <MudNavGroup Title="@StringLocalizer["ButtonAdvanced"]" Icon="@Icons.Material.Filled.Tune" Expanded="false">
+                    <MudNavLink Href="advanced" Icon="@Icons.Material.Filled.Dashboard" Match="NavLinkMatch.All">
+                        @StringLocalizer["ButtonAdvanced"]
+                    </MudNavLink>
+                    <MudNavGroup Icon="@Icons.Material.Filled.CalendarMonth" Expanded="false">
+                        <TitleContent>
                             @if (_playoutWarnings > 0)
                             {
-                                <MudBadge Content="_playoutWarnings"
-                                          Color="Color.Warning"
-                                          Origin="Origin.CenterRight"
-                                          BadgeClass="mx-3">
-                                    @StringLocalizer["ButtonSchedulingPlayouts"]
-                                </MudBadge>
+                                <div style="align-items: center; display: flex">
+                                    @StringLocalizer["ButtonScheduling"]
+                                    <MudIcon Color="@Color.Warning" Icon="@Icons.Material.Filled.Warning" Class="mx-2" Size="Size.Small"/>
+                                </div>
                             }
                             else
                             {
-                                @StringLocalizer["ButtonSchedulingPlayouts"]
+                                @StringLocalizer["ButtonScheduling"]
                             }
+                        </TitleContent>
+                        <ChildContent>
+                            <MudNavLink Href="schedules" Icon="@Icons.Material.Filled.EventNote">
+                                @StringLocalizer["ButtonSchedulingSchedules"]
+                            </MudNavLink>
+                            <MudNavLink Href="blocks" Icon="@Icons.Material.Filled.ViewModule">
+                                @StringLocalizer["ButtonSchedulingBlocks"]
+                            </MudNavLink>
+                            <MudNavLink Href="templates" Icon="@Icons.Material.Filled.DashboardCustomize">
+                                @StringLocalizer["ButtonSchedulingTemplates"]
+                            </MudNavLink>
+                            <MudNavLink Href="decos" Icon="@Icons.Material.Filled.AutoFixHigh">
+                                @StringLocalizer["ButtonSchedulingDecos"]
+                            </MudNavLink>
+                            <MudNavLink Href="deco-templates" Icon="@Icons.Material.Filled.Style">
+                                @StringLocalizer["ButtonSchedulingDecoTemplates"]
+                            </MudNavLink>
+                            <MudNavLink Href="playouts" Icon="@Icons.Material.Filled.Schedule">
+                                @if (_playoutWarnings > 0)
+                                {
+                                    <MudBadge Content="_playoutWarnings"
+                                              Color="Color.Warning"
+                                              Origin="Origin.CenterRight"
+                                              BadgeClass="mx-3">
+                                        @StringLocalizer["ButtonSchedulingPlayouts"]
+                                    </MudBadge>
+                                }
+                                else
+                                {
+                                    @StringLocalizer["ButtonSchedulingPlayouts"]
+                                }
+                            </MudNavLink>
+                        </ChildContent>
+                    </MudNavGroup>
+                    <MudNavGroup Title="@StringLocalizer["ButtonAppearance"]" Icon="@Icons.Material.Filled.Palette" Expanded="false">
+                        <MudNavLink Href="overlays" Icon="@Icons.Material.Filled.Layers">
+                            @StringLocalizer["ButtonOverlays"]
                         </MudNavLink>
-                    </ChildContent>
+                        <MudNavLink Href="watermarks" Icon="@Icons.Material.Filled.BrandingWatermark">
+                            @StringLocalizer["ButtonWatermarks"]
+                        </MudNavLink>
+                    </MudNavGroup>
+                    <MudNavGroup Title="@StringLocalizer["ButtonEncoding"]" Icon="@Icons.Material.Filled.VideoSettings" Expanded="false">
+                        <MudNavLink Href="ffmpeg" Icon="@Icons.Material.Filled.VideoSettings">
+                            @StringLocalizer["ButtonFFmpegProfiles"]
+                        </MudNavLink>
+                    </MudNavGroup>
                 </MudNavGroup>
-                <MudNavGroup Title="@StringLocalizer["ButtonSettings"]">
-                    <MudNavLink Href="settings/ffmpeg">@StringLocalizer["ButtonSettingsFFmpeg"]</MudNavLink>
-                    <MudNavLink Href="settings/logging">@StringLocalizer["ButtonSettingsLogging"]</MudNavLink>
-                    <MudNavLink Href="settings/hdhr">@StringLocalizer["ButtonSettingsHdHomeRun"]</MudNavLink>
-                    <MudNavLink Href="settings/scanner">@StringLocalizer["ButtonSettingsScanner"]</MudNavLink>
-                    <MudNavLink Href="settings/playout">@StringLocalizer["ButtonSettingsPlayout"]</MudNavLink>
-                    <MudNavLink Href="settings/ui">@StringLocalizer["ButtonSettingsUi"]</MudNavLink>
-                    <MudNavLink Href="settings/xmltv">@StringLocalizer["ButtonSettingsXmltv"]</MudNavLink>
+
+                @* System *@
+                <MudNavGroup Title="@StringLocalizer["ButtonSettings"]" Icon="@Icons.Material.Filled.Settings" Expanded="false">
+                    <MudNavLink Href="settings/ffmpeg" Icon="@Icons.Material.Filled.Tune">
+                        @StringLocalizer["ButtonSettingsFFmpeg"]
+                    </MudNavLink>
+                    <MudNavLink Href="settings/logging" Icon="@Icons.Material.Filled.Article">
+                        @StringLocalizer["ButtonSettingsLogging"]
+                    </MudNavLink>
+                    <MudNavLink Href="settings/hdhr" Icon="@Icons.Material.Filled.Router">
+                        @StringLocalizer["ButtonSettingsHdHomeRun"]
+                    </MudNavLink>
+                    <MudNavLink Href="settings/scanner" Icon="@Icons.Material.Filled.Radar">
+                        @StringLocalizer["ButtonSettingsScanner"]
+                    </MudNavLink>
+                    <MudNavLink Href="settings/playout" Icon="@Icons.Material.Filled.PlayCircle">
+                        @StringLocalizer["ButtonSettingsPlayout"]
+                    </MudNavLink>
+                    <MudNavLink Href="settings/ui" Icon="@Icons.Material.Filled.DisplaySettings">
+                        @StringLocalizer["ButtonSettingsUi"]
+                    </MudNavLink>
+                    <MudNavLink Href="settings/xmltv" Icon="@Icons.Material.Filled.RssFeed">
+                        @StringLocalizer["ButtonSettingsXmltv"]
+                    </MudNavLink>
                 </MudNavGroup>
-                <MudNavGroup Expanded="true">
+                <MudNavGroup Icon="@Icons.Material.Filled.Support" Expanded="@(_errors > 0 || _warnings > 0)">
                     <TitleContent>
                         @if (_errors > 0)
                         {
                             <div style="align-items: center; display: flex">
                                 @StringLocalizer["ButtonSupport"]
-                                <MudIcon Color="@Color.Error" Icon="@Icons.Material.Filled.Error" Class="mx-2"/>
+                                <MudIcon Color="@Color.Error" Icon="@Icons.Material.Filled.Error" Class="mx-2" Size="Size.Small"/>
                             </div>
                         }
                         else if (_warnings > 0)
                         {
                             <div style="align-items: center; display: flex">
                                 @StringLocalizer["ButtonSupport"]
-                                <MudIcon Color="@Color.Warning" Icon="@Icons.Material.Filled.Warning" Class="mx-2"/>
+                                <MudIcon Color="@Color.Warning" Icon="@Icons.Material.Filled.Warning" Class="mx-2" Size="Size.Small"/>
                             </div>
                         }
                         else
@@ -215,7 +342,7 @@
                         }
                     </TitleContent>
                     <ChildContent>
-                        <MudNavLink Href="system/health">
+                        <MudNavLink Href="system/health" Icon="@Icons.Material.Filled.MonitorHeart" Match="NavLinkMatch.All">
                             @if (_errors > 0)
                             {
                                 <MudBadge Content="_errors"
@@ -239,23 +366,54 @@
                                 @StringLocalizer["ButtonSupportHealthChecks"]
                             }
                         </MudNavLink>
-                        <MudNavLink Href="system/logs">@StringLocalizer["ButtonSupportLogs"]</MudNavLink>
-                        <MudNavLink Href="system/troubleshooting">@StringLocalizer["ButtonSupportTroubleshooting"]</MudNavLink>
+                        <MudNavLink Href="system/logs" Icon="@Icons.Material.Filled.Terminal">
+                            @StringLocalizer["ButtonSupportLogs"]
+                        </MudNavLink>
+                        <MudNavLink Href="system/troubleshooting" Icon="@Icons.Material.Filled.BugReport">
+                            @StringLocalizer["ButtonSupportTroubleshooting"]
+                        </MudNavLink>
                     </ChildContent>
                 </MudNavGroup>
-                <MudDivider Class="my-6" DividerType="DividerType.Middle"/>
-                <MudContainer Style="text-align: right" Class="mr-6">
-                    <MudText Typo="Typo.body2">@StringLocalizer["LabelErsatzTVVersion"]</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Info">@InfoVersion</MudText>
-                    @if (BuildConfiguration != "release")
-                    {
-                        <MudText Typo="Typo.body2" Color="Color.Warning">@BuildConfiguration</MudText>
-                    }
-                    <br />
-                    <MudText Typo="Typo.body2">ErsatzTV Next Version</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Info">@NextVersion.Version</MudText>
-                </MudContainer>
+
+                @if (_isMobile)
+                {
+                    <MudDivider DividerType="DividerType.Middle" Class="my-2"/>
+                    <MudNavLink Href="iptv/channels.m3u" Icon="@Icons.Material.Filled.PlaylistPlay" Target="_blank">
+                        @StringLocalizer["ButtonM3U"]
+                    </MudNavLink>
+                    <MudNavLink Href="iptv/xmltv.xml" Icon="@Icons.Material.Filled.RssFeed" Target="_blank">
+                        @StringLocalizer["ButtonXmltv"]
+                    </MudNavLink>
+                    <MudNavLink Href="docs" Icon="@Icons.Material.Filled.Api" Target="_blank">
+                        @StringLocalizer["ButtonApi"]
+                    </MudNavLink>
+                    <AuthorizeView>
+                        <form id="mobile-logout-form" action="/account/logout" method="post" class="mx-4 my-2">
+                            <MudButton ButtonType="ButtonType.Submit"
+                                       Variant="Variant.Text"
+                                       Color="Color.Secondary"
+                                       StartIcon="@Icons.Material.Filled.Logout"
+                                       FullWidth="true"
+                                       Style="justify-content: flex-start">
+                                @StringLocalizer["ButtonLogout"]
+                            </MudButton>
+                        </form>
+                    </AuthorizeView>
+                }
             </MudNavMenu>
+            <MudDivider DividerType="DividerType.Middle" Class="my-2"/>
+            <div class="nav-version">
+                <MudTooltip Text="@StringLocalizer["ButtonSupport"]">
+                    <MudText Typo="Typo.caption">@StringLocalizer["LabelErsatzTVVersion"]</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Info">@InfoVersion</MudText>
+                </MudTooltip>
+                @if (BuildConfiguration != "release")
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Warning">@BuildConfiguration</MudText>
+                }
+                <MudText Typo="Typo.caption" Class="mt-2">ErsatzTV Next Version</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Info">@NextVersion.Version</MudText>
+            </div>
         </MudDrawer>
     }
     <MudMainContent>
@@ -266,6 +424,7 @@
 @code {
     private static readonly string InfoVersion = Assembly.GetEntryAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
     private static readonly string BuildConfiguration = Assembly.GetEntryAssembly().GetCustomAttribute<AssemblyConfigurationAttribute>()?.Configuration?.ToLower() ?? "unset";
+    private static readonly MudTheme _theme = ErsatzTvTheme.Create();
 
     private CancellationTokenSource _cts;
 
@@ -276,11 +435,21 @@
     private readonly SearchModel _dummyModel = new();
     private bool _drawerIsOpen = true;
     private bool _isOpen;
+    private bool _isMobile;
+    private bool _viewportSubscribed;
     private List<SearchTargetViewModel> _searchTargets;
     private int _playoutWarnings;
     private int _errors;
     private int _warnings;
     private bool _isDarkMode = true;
+
+    Guid IBrowserViewportObserver.Id { get; } = Guid.NewGuid();
+
+    ResizeOptions IBrowserViewportObserver.ResizeOptions { get; } = new()
+    {
+        ReportRate = 50,
+        NotifyOnBreakpointOnly = true
+    };
 
     protected override void OnInitialized()
     {
@@ -299,7 +468,16 @@
         await HandleHealthCheckSummary(HealthCheckService.GetHealthCheckSummary(), CancellationToken.None);
     }
 
-    public void Dispose()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_viewportSubscribed)
+        {
+            await BrowserViewportService.SubscribeAsync(this, fireImmediately: true);
+            _viewportSubscribed = true;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
     {
         SystemStartup.OnDatabaseReady -= OnStartupProgress;
         SystemStartup.OnSearchIndexReady -= OnStartupProgress;
@@ -309,58 +487,26 @@
         Courier.UnSubscribe<HealthCheckSummary>(HandleHealthCheckSummary);
         Courier.UnSubscribe<PlayoutUpdatedNotification>(HandlePlayoutUpdated);
 
+        if (_viewportSubscribed)
+        {
+            await BrowserViewportService.UnsubscribeAsync(this);
+        }
+
         _cts?.Cancel();
         _cts?.Dispose();
     }
 
-    private static MudTheme ErsatzTvTheme => new()
+    async Task IBrowserViewportObserver.NotifyBrowserViewportChangeAsync(BrowserViewportEventArgs args)
     {
-        PaletteDark = new PaletteDark
+        bool wasMobile = _isMobile;
+        _isMobile = args.Breakpoint is Breakpoint.Xs or Breakpoint.Sm;
+        if (wasMobile != _isMobile)
         {
-            ActionDefault = "rgba(255,255,255, 0.80)",
-            Primary = "#009000",
-            Secondary = "#009090",
-            Surface = "#1f1f1f",
-            AppbarBackground = "#121212",
-            AppbarText = "rgba(255,255,255, 0.80)",
-            DrawerBackground = "#1f1f1f",
-            DrawerText = "rgba(255,255,255, 0.80)",
-            Divider = "rgba(255,255,255, 0.40)",
-            Background = "#272727",
-            BackgroundGray = "#272727",
-            TextPrimary = "rgba(255,255,255, 0.90)",
-            TextSecondary = "rgba(255,255,255, 0.80)",
-            TextDisabled = "rgba(255,255,255, 0.40)",
-            ActionDisabled = "rgba(255,255,255, 0.40)",
-            TableHover = "rgba(255,255,255, 0.10)",
-            TableLines = "rgba(255,255,255,0.11)",
-            Info = "#00c0c0",
-            Tertiary = "#00c000",
-            White = Colors.Shades.White
-        },
-
-        PaletteLight = new PaletteLight
-        {
-            ActionDefault = "#546E7A",
-            Primary = "#546E7A",
-            Secondary = "#EC407A",
-            AppbarBackground = "#ECEFF1",
-            AppbarText = "#424242",
-            DrawerBackground = "#FFFFFF",
-            DrawerText = "#424242",
-            Surface = "#FFFFFF",
-            Background = "#F5F5F5",
-            TextPrimary = "#212121",
-            TextSecondary = "rgba(0,0,0, 0.7)",
-            TextDisabled = "rgba(0,0,0, 0.5)",
-            ActionDisabled = "rgba(0,0,0, 0.3)",
-            Divider = "rgba(0,0,0, 0.12)",
-            TableHover = "rgba(0,0,0, 0.02)",
-            TableLines = "rgba(0,0,0,0.08)",
-            Info = "#00c0c0",
-            Tertiary = "#00c000"
+            _drawerIsOpen = !_isMobile;
         }
-    };
+
+        await InvokeAsync(StateHasChanged);
+    }
 
     private string Query
     {

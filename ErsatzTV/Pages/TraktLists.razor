@@ -1,4 +1,4 @@
-﻿@page "/media/trakt/lists"
+@page "/media/trakt/lists"
 @using ErsatzTV.Application.Configuration
 @using ErsatzTV.Application.MediaCollections
 @implements IDisposable
@@ -8,7 +8,7 @@
 @inject ChannelWriter<IBackgroundServiceRequest> WorkerChannel
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
         <MudButton Class="ml-8"
                    StartIcon="@Icons.Material.Filled.Add"
                    Variant="Variant.Filled"
@@ -20,8 +20,7 @@
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Trakt Lists</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Trakt Lists"/>
             <MudTable Hover="true"
                       @bind-RowsPerPage="@_traktListsRowsPerPage"
                       ServerData="@(new Func<TableState, CancellationToken, Task<TableData<TraktListViewModel>>>(ServerReloadTraktLists))"

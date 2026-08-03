@@ -8,13 +8,12 @@
 @inject IEntityLocker Locker
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
         @if (_mediaSources.Any())
         {
             <MudButton Variant="Variant.Filled"
                        Color="Color.Error"
-                       OnClick="@(_ => Disconnect())"
-                       Class="ml-8">
+                       OnClick="@(_ => Disconnect())">
                 Disconnect @Name
             </MudButton>
         }
@@ -22,8 +21,7 @@
         {
             <MudButton Variant="Variant.Filled"
                        Color="Color.Primary"
-                       Href="@($"media/sources/{Name.ToLowerInvariant()}/edit")"
-                       Class="ml-8">
+                       Href="@($"media/sources/{Name.ToLowerInvariant()}/edit")">
                 Connect @Name
             </MudButton>
         }
@@ -35,7 +33,7 @@
                 <MudButton Variant="Variant.Filled"
                            Color="Color.Secondary"
                            Href="@($"media/sources/{Name.ToLowerInvariant()}/edit")"
-                           Class="ml-4">
+                           Class="ml-2">
                     Edit @Name Connection
                 </MudButton>
             }
@@ -44,7 +42,7 @@
                 <MudButton Variant="Variant.Filled"
                            Color="Color.Secondary"
                            Href="@($"media/sources/{Name.ToLowerInvariant()}/edit")"
-                           Class="ml-4">
+                           Class="ml-2">
                     Fix @Name Connection
                 </MudButton>
             }
@@ -52,9 +50,8 @@
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">@Name Media Sources</MudText>
-            <MudDivider Class="mb-6"/>
-            <MudTable Hover="true" Dense="true" Items="_mediaSources">
+            <PageHeader Title="@($"{Name} Media Sources")"/>
+            <MudTable Hover="true" Elevation="0" Dense="true" Items="_mediaSources">
                 <ColGroup>
                     <MudHidden Breakpoint="Breakpoint.Xs">
                         <col/>

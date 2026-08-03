@@ -4,15 +4,31 @@
 <div>
     <MudDialog>
         <DialogContent>
-            <media-controller style="width: 800px; height: calc(800px * 9/16)">
-                <video id="video" slot="media"></video>
-                <media-control-bar>
-                    <media-mute-button></media-mute-button>
-                    <media-volume-range></media-volume-range>
-                    <media-captions-button></media-captions-button>
-                    <media-fullscreen-button></media-fullscreen-button>
-                </media-control-bar>
-            </media-controller>
+            <div style="display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap;">
+                <div style="flex: 1 1 360px; min-width: 320px;">
+                    <MudText Typo="Typo.caption" Class="mb-1" Style="opacity: 0.8;">Livestream (HLS)</MudText>
+                    <media-controller style="width: 100%; aspect-ratio: 16 / 9; background: #000;">
+                        <video id="video" slot="media"></video>
+                        <media-control-bar>
+                            <media-mute-button></media-mute-button>
+                            <media-volume-range></media-volume-range>
+                            <media-captions-button></media-captions-button>
+                            <media-fullscreen-button></media-fullscreen-button>
+                        </media-control-bar>
+                    </media-controller>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(RawPreviewUri))
+                {
+                    <div style="flex: 1 1 360px; min-width: 320px;">
+                        <MudText Typo="Typo.caption" Class="mb-1" Style="opacity: 0.8;">Raw preview (no delay, 60 fps)</MudText>
+                        <div style="width: 100%; aspect-ratio: 16 / 9; background: #111; border-radius: 4px; overflow: hidden;">
+                            <img src="@RawPreviewUri"
+                                 alt="Raw channel preview"
+                                 style="width: 100%; height: 100%; object-fit: contain; display: block; background: #000;"/>
+                        </div>
+                    </div>
+                }
+            </div>
         </DialogContent>
         <DialogActions>
             <MudButton Color="Color.Primary" OnClick="Close">Close</MudButton>
@@ -27,6 +43,9 @@
 
     [Parameter]
     public string StreamUri { get; set; }
+
+    [Parameter]
+    public string RawPreviewUri { get; set; }
 
     protected override Task OnParametersSetAsync() => Task.CompletedTask;
 

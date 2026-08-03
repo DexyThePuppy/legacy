@@ -1,4 +1,4 @@
-﻿@page "/media/tv/shows"
+@page "/media/tv/shows"
 @page "/media/tv/shows/page/{PageNumber:int}"
 @inherits MultiSelectBase<TelevisionShowList>
 @inject NavigationManager NavigationManager
@@ -10,7 +10,7 @@
 @implements IDisposable
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100;">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
         <MediaCardPager Query="@_query"
                         PageNumber="@PageNumber"
                         PageSize="@PageSize"

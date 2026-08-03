@@ -8,6 +8,7 @@ using System.Timers;
 using CliWrap;
 using CliWrap.Buffered;
 using ErsatzTV.Application.Channels;
+using ErsatzTV.Application.FFmpegProfiles;
 using ErsatzTV.Application.Playouts;
 using ErsatzTV.Core;
 using ErsatzTV.Core.Domain;
@@ -41,6 +42,8 @@ public class HlsSessionWorker : IHlsSessionWorker
     private readonly Lock _sync = new();
     private readonly Option<FrameRate> _targetFramerate;
     private CancellationTokenSource _cancellationTokenSource;
+    private CancellationTokenSource _itemCts;
+    private volatile bool _isPlaybackPaused;
     private string _channelNumber;
     private DateTimeOffset _channelStart;
     private int _discontinuitySequence;
@@ -82,18 +85,65 @@ public class HlsSessionWorker : IHlsSessionWorker
 
     public DateTimeOffset PlaylistStart { get; private set; }
 
-    public async Task Cancel(CancellationToken cancellationToken)
+    public Task Cancel(CancellationToken cancellationToken)
     {
         _logger.LogInformation("API termination request for HLS session for channel {Channel}", _channelNumber);
 
-        await _slim.WaitAsync(cancellationToken);
+        _isPlaybackPaused = false;
+
+        // Do not wait on _slim — playlist/pts work can hold it while awaiting I/O.
+        // Waiting here deadlocks Stop because the CTS is never cancelled.
         try
         {
-            await _cancellationTokenSource.CancelAsync();
+            _itemCts?.Cancel();
         }
-        finally
+        catch (ObjectDisposedException)
         {
-            _slim.Release();
+            // already torn down
+        }
+
+        try
+        {
+            _cancellationTokenSource?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // already torn down
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public bool IsPlaybackPaused => _isPlaybackPaused;
+
+    public void PausePlayback()
+    {
+        _logger.LogInformation("Pause request for HLS session for channel {Channel}", _channelNumber);
+        _isPlaybackPaused = true;
+        try
+        {
+            _itemCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // ignore
+        }
+    }
+
+    public void ResumePlayback()
+    {
+        _logger.LogInformation("Resume request for HLS session for channel {Channel}", _channelNumber);
+        _isPlaybackPaused = false;
+        _state = HlsSessionState.PlayoutUpdated;
+
+        // Stop the freeze encoder so the main loop can resume normal content encode.
+        try
+        {
+            _itemCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // ignore
         }
     }
 
@@ -244,6 +294,12 @@ public class HlsSessionWorker : IHlsSessionWorker
                     }
                 }
 
+                if (_isPlaybackPaused)
+                {
+                    await RunPausedFreezeAsync(cancellationToken);
+                    continue;
+                }
+
                 var transcodedBuffer = TimeSpan.FromSeconds(
                     Math.Max(0, _transcodedUntil.Subtract(DateTimeOffset.Now).TotalSeconds));
                 if (transcodedBuffer <= TimeSpan.FromMinutes(1))
@@ -254,6 +310,11 @@ public class HlsSessionWorker : IHlsSessionWorker
                         !realtime && Volatile.Read(ref _workAheadCount) < await GetWorkAheadLimit(cancellationToken);
                     if (!await Transcode(!subsequentWorkAhead, cancellationToken))
                     {
+                        if (_isPlaybackPaused)
+                        {
+                            continue;
+                        }
+
                         return;
                     }
                 }
@@ -537,7 +598,9 @@ public class HlsSessionWorker : IHlsSessionWorker
 
                 try
                 {
-                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    _itemCts?.Dispose();
+                    _itemCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    CancellationToken itemToken = _itemCts.Token;
 
                     Command processWithPipe = process;
                     foreach (GraphicsEngineContext graphicsEngineContext in processModel.GraphicsEngineContext)
@@ -550,7 +613,7 @@ public class HlsSessionWorker : IHlsSessionWorker
                         _ = _graphicsEngine.Run(
                             graphicsEngineContext,
                             pipe.Writer,
-                            linkedCts.Token);
+                            itemToken);
                     }
 
                     var progressParser = new FFmpegProgress();
@@ -560,7 +623,7 @@ public class HlsSessionWorker : IHlsSessionWorker
                         .WithStandardErrorPipe(PipeTarget.ToStringBuilder(stdErrBuffer))
                         .WithStandardOutputPipe(PipeTarget.ToDelegate(progressParser.ParseLine))
                         .WithValidation(CommandResultValidation.None)
-                        .ExecuteAsync(linkedCts.Token);
+                        .ExecuteAsync(itemToken);
 
                     if (commandResult.ExitCode == 0)
                     {
@@ -584,7 +647,14 @@ public class HlsSessionWorker : IHlsSessionWorker
                     }
                     else
                     {
-                        await linkedCts.CancelAsync();
+                        try
+                        {
+                            await _itemCts.CancelAsync();
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                            // ignore
+                        }
 
                         // detect the non-zero exit code and transcode the ffmpeg error message instead
                         var errorMessage = stdErrBuffer.ToString();
@@ -640,6 +710,12 @@ public class HlsSessionWorker : IHlsSessionWorker
                 }
                 catch (Exception ex) when (ex is TaskCanceledException or OperationCanceledException)
                 {
+                    if (_isPlaybackPaused)
+                    {
+                        _logger.LogInformation("HLS encode paused for channel {Channel}", _channelNumber);
+                        return false;
+                    }
+
                     _logger.LogInformation("Terminating HLS session for channel {Channel}", _channelNumber);
                     return false;
                 }
@@ -679,6 +755,254 @@ public class HlsSessionWorker : IHlsSessionWorker
 
         return false;
     }
+
+    private async Task RunPausedFreezeAsync(CancellationToken cancellationToken)
+    {
+        Touch(Option<string>.None);
+
+        // Pause freezes the *video* (still frame + silent audio) while the encoder
+        // keeps producing profile-compatible HLS segments so the livestream stays live.
+        Option<string> maybeFfmpegPath =
+            await _configElementRepository.GetValue<string>(ConfigElementKey.FFmpegPath, cancellationToken);
+        if (maybeFfmpegPath.IsNone)
+        {
+            _logger.LogWarning("Pause freeze failed for channel {Channel}; ffmpeg path missing", _channelNumber);
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            return;
+        }
+
+        Either<BaseError, ChannelPreviewSource> maybeSource =
+            await _mediator.Send(new GetChannelPreviewSource(_channelNumber), cancellationToken);
+        if (maybeSource.IsLeft)
+        {
+            _logger.LogWarning(
+                "Pause freeze failed for channel {Channel}; no preview source: {Error}",
+                _channelNumber,
+                maybeSource.LeftToSeq().Head().Value);
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            return;
+        }
+
+        ChannelPreviewSource source = maybeSource.RightToSeq().Head();
+        Option<ChannelViewModel> maybeChannel =
+            await _mediator.Send(new GetChannelByNumber(_channelNumber), cancellationToken);
+        if (maybeChannel.IsNone)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            return;
+        }
+
+        ChannelViewModel channel = maybeChannel.Head();
+        Option<FFmpegProfileViewModel> maybeProfile =
+            await _mediator.Send(new GetFFmpegProfileById(channel.FFmpegProfileId), cancellationToken);
+        if (maybeProfile.IsNone)
+        {
+            _logger.LogWarning(
+                "Pause freeze failed for channel {Channel}; ffmpeg profile {ProfileId} missing",
+                _channelNumber,
+                channel.FFmpegProfileId);
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            return;
+        }
+
+        FFmpegProfileViewModel profile = maybeProfile.Head();
+        string videoEncoder = ResolvePauseVideoEncoder(profile);
+        string audioEncoder = ResolvePauseAudioEncoder(profile);
+        int width = Math.Max(2, profile.Resolution.Width);
+        int height = Math.Max(2, profile.Resolution.Height);
+        int fps = 25;
+        foreach (FrameRate fr in _targetFramerate)
+        {
+            if (fr.ParsedFrameRate is > 0 and <= 120)
+            {
+                fps = (int)Math.Round(fr.ParsedFrameRate);
+            }
+        }
+
+        int audioChannels = Math.Clamp(profile.AudioChannels, 1, 8);
+        int sampleRate = profile.AudioSampleRate > 0 ? profile.AudioSampleRate : 48000;
+        string channelLayout = audioChannels switch
+        {
+            1 => "mono",
+            2 => "stereo",
+            _ => $"{audioChannels}c"
+        };
+
+        long startNumber = GetNextHlsSegmentNumber();
+        string segmentTemplate = _outputFormatKind is OutputFormatKind.HlsMp4
+            ? Path.Combine(_workingDirectory, $"live_{DateTimeOffset.Now.ToUnixTimeSeconds()}_%06d.m4s")
+            : Path.Combine(_workingDirectory, "live%06d.ts");
+        string playlistPath = PlaylistFileName();
+
+        var args = new List<string>
+        {
+            "-hide_banner",
+            "-nostats",
+            "-loglevel", "error"
+        };
+
+        if (!source.IsLive && source.Seek > TimeSpan.Zero)
+        {
+            args.Add("-ss");
+            args.Add(source.Seek.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture));
+        }
+
+        args.AddRange(
+        [
+            "-i", source.Path,
+            "-f", "lavfi",
+            "-i", $"anullsrc=channel_layout={channelLayout}:sample_rate={sampleRate}",
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-vf",
+            $"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,loop=loop=-1:size=1:start=0,setpts=N/{fps}/TB,fps={fps},format=yuv420p",
+            "-r", fps.ToString(CultureInfo.InvariantCulture),
+            "-c:v", videoEncoder
+        ]);
+
+        if (profile.VideoBitrate > 0)
+        {
+            args.AddRange(["-b:v", $"{profile.VideoBitrate}k"]);
+        }
+
+        if (!string.IsNullOrWhiteSpace(profile.VideoPreset) &&
+            !string.Equals(profile.VideoPreset, "none", StringComparison.OrdinalIgnoreCase) &&
+            videoEncoder.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
+        {
+            args.AddRange(["-preset", profile.VideoPreset]);
+        }
+
+        args.AddRange(
+        [
+            "-c:a", audioEncoder,
+            "-b:a", $"{Math.Max(64, profile.AudioBitrate)}k",
+            "-ac", audioChannels.ToString(CultureInfo.InvariantCulture),
+            "-ar", sampleRate.ToString(CultureInfo.InvariantCulture),
+            "-g", (fps * OutputFormatHls.KeyframeIntervalSeconds).ToString(CultureInfo.InvariantCulture),
+            "-force_key_frames", $"expr:gte(t,n_forced*{OutputFormatHls.KeyframeIntervalSeconds})",
+            "-f", "hls",
+            "-hls_time", $"{OutputFormatHls.SegmentSeconds}",
+            "-hls_list_size", "0",
+            "-start_number", startNumber.ToString(CultureInfo.InvariantCulture),
+            "-hls_segment_filename", segmentTemplate
+        ]);
+
+        if (_outputFormatKind is OutputFormatKind.HlsMp4)
+        {
+            args.AddRange(
+            [
+                "-hls_segment_type", "fmp4",
+                "-hls_fmp4_init_filename", $"{DateTimeOffset.Now.ToUnixTimeSeconds()}_init.mp4"
+            ]);
+        }
+        else
+        {
+            args.AddRange(["-hls_segment_type", "mpegts"]);
+        }
+
+        args.AddRange(
+        [
+            "-hls_flags", "program_date_time+omit_endlist+append_list+discont_start+independent_segments",
+            playlistPath
+        ]);
+
+        string ffmpegPath = maybeFfmpegPath.Head();
+        Command process = Cli.Wrap(ffmpegPath)
+            .WithArguments(args)
+            .WithWorkingDirectory(_workingDirectory)
+            .WithValidation(CommandResultValidation.None);
+
+        _logger.LogInformation(
+            "Pause freeze encode for channel {Channel} using {VideoEncoder}/{AudioEncoder}",
+            _channelNumber,
+            videoEncoder,
+            audioEncoder);
+        _logger.LogDebug("ffmpeg pause freeze arguments {FFmpegArguments}", process.Arguments);
+
+        try
+        {
+            _itemCts?.Dispose();
+            _itemCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            CancellationToken itemToken = _itemCts.Token;
+
+            CommandTask<CommandResult> encodeTask = process.ExecuteAsync(itemToken);
+            while (!encodeTask.Task.IsCompleted && _isPlaybackPaused && !itemToken.IsCancellationRequested)
+            {
+                Touch(Option<string>.None);
+                _transcodedUntil = DateTimeOffset.Now.AddSeconds(OutputFormatHls.SegmentSeconds);
+                _hasWrittenSegments = true;
+                await Task.WhenAny(encodeTask.Task, Task.Delay(TimeSpan.FromSeconds(2), itemToken));
+            }
+
+            try
+            {
+                await encodeTask;
+            }
+            catch (Exception ex) when (ex is TaskCanceledException or OperationCanceledException)
+            {
+                // expected on resume / stop
+            }
+        }
+        catch (Exception ex) when (ex is TaskCanceledException or OperationCanceledException)
+        {
+            // expected on resume / stop
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Pause freeze encode error for channel {Channel}: {Message}",
+                _channelNumber,
+                ex.Message);
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+        }
+    }
+
+    private long GetNextHlsSegmentNumber()
+    {
+        IEnumerable<string> segments = _outputFormatKind is OutputFormatKind.HlsMp4
+            ? _fileSystem.Directory.GetFiles(_workingDirectory, "live*.m4s")
+            : _fileSystem.Directory.GetFiles(_workingDirectory, "live*.ts");
+
+        return segments
+            .Select(f =>
+            {
+                string fileName = Path.GetFileNameWithoutExtension(f);
+                string sequencePart = fileName.Contains('_', StringComparison.Ordinal)
+                    ? fileName.Split('_')[^1]
+                    : fileName.Replace("live", string.Empty, StringComparison.OrdinalIgnoreCase);
+                return long.TryParse(sequencePart, NumberStyles.Integer, CultureInfo.InvariantCulture, out long n)
+                    ? n
+                    : 0L;
+            })
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+    }
+
+    private static string ResolvePauseVideoEncoder(FFmpegProfileViewModel profile) =>
+        (profile.VideoFormat, profile.HardwareAcceleration) switch
+        {
+            (FFmpegProfileVideoFormat.Hevc, HardwareAccelerationKind.Nvenc) => "hevc_nvenc",
+            (FFmpegProfileVideoFormat.H264, HardwareAccelerationKind.Nvenc) => "h264_nvenc",
+            (FFmpegProfileVideoFormat.Hevc, HardwareAccelerationKind.Qsv) => "hevc_qsv",
+            (FFmpegProfileVideoFormat.H264, HardwareAccelerationKind.Qsv) => "h264_qsv",
+            (FFmpegProfileVideoFormat.Hevc, HardwareAccelerationKind.Amf) => "hevc_amf",
+            (FFmpegProfileVideoFormat.H264, HardwareAccelerationKind.Amf) => "h264_amf",
+            (FFmpegProfileVideoFormat.Hevc, HardwareAccelerationKind.Vaapi) => "hevc_vaapi",
+            (FFmpegProfileVideoFormat.H264, HardwareAccelerationKind.Vaapi) => "h264_vaapi",
+            (FFmpegProfileVideoFormat.Hevc, HardwareAccelerationKind.VideoToolbox) => "hevc_videotoolbox",
+            (FFmpegProfileVideoFormat.H264, HardwareAccelerationKind.VideoToolbox) => "h264_videotoolbox",
+            (FFmpegProfileVideoFormat.Hevc, _) => "libx265",
+            (FFmpegProfileVideoFormat.Mpeg2Video, _) => "mpeg2video",
+            _ => "libx264"
+        };
+
+    private static string ResolvePauseAudioEncoder(FFmpegProfileViewModel profile) =>
+        profile.AudioFormat switch
+        {
+            FFmpegProfileAudioFormat.Ac3 => "ac3",
+            _ => "aac"
+        };
 
     private async Task TrimAndDelete(CancellationToken cancellationToken)
     {

@@ -6,7 +6,7 @@ namespace ErsatzTV.Application.Playouts;
 public record CreatePlayout(int ChannelId, PlayoutScheduleKind ScheduleKind)
     : IRequest<Either<BaseError, CreatePlayoutResponse>>;
 
-public record CreateClassicPlayout(int ChannelId, int ProgramScheduleId)
+public record CreateClassicPlayout(int ChannelId, int ProgramScheduleId, bool QueueInitialBuild = true)
     : CreatePlayout(ChannelId, PlayoutScheduleKind.Classic);
 
 public record CreateBlockPlayout(int ChannelId)

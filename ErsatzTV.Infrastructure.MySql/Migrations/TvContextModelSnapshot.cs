@@ -343,6 +343,14 @@ namespace ErsatzTV.Infrastructure.MySql.Migrations
                     b.Property<TimeSpan?>("PlayoutOffset")
                         .HasColumnType("time(6)");
 
+                    b.Property<TimeSpan>("PlaybackControlOffset")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("time(6)")
+                        .HasDefaultValue(new TimeSpan(0, 0, 0, 0, 0));
+
+                    b.Property<DateTimeOffset?>("PlaybackPausedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<int>("PlayoutSource")
                         .HasColumnType("int");
 

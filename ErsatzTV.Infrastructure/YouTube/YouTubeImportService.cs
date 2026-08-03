@@ -240,6 +240,30 @@ public class YouTubeImportService(IYtDlpService ytDlpService, ILogger<YouTubeImp
         return Unit.Default;
     }
 
+    public async Task<Either<BaseError, Unit>> UpdateStationLinkage(
+        string slug,
+        int? channelId,
+        int? smartCollectionId,
+        int? programScheduleId,
+        int? playoutId,
+        CancellationToken cancellationToken)
+    {
+        Option<YouTubeImportManifest> maybeManifest = await GetImport(slug, cancellationToken);
+        if (maybeManifest.IsNone)
+        {
+            return BaseError.New($"YouTube import {slug} does not exist");
+        }
+
+        YouTubeImportManifest manifest = maybeManifest.ValueUnsafe();
+        manifest.ChannelId = channelId;
+        manifest.SmartCollectionId = smartCollectionId;
+        manifest.ProgramScheduleId = programScheduleId;
+        manifest.PlayoutId = playoutId;
+
+        await SaveManifest(manifest, cancellationToken);
+        return Unit.Default;
+    }
+
     public Task<Either<BaseError, Unit>> DeleteImport(string slug, CancellationToken cancellationToken)
     {
         try

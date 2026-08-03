@@ -1,4 +1,4 @@
-﻿<MudDialog>
+<MudDialog>
     <DialogContent>
         <MudContainer Class="mb-6">
             <MudText>
@@ -8,7 +8,7 @@
         <MudTextField Label="External Json File" @bind-Value="_externalJsonFile"/>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="@Cancel" ButtonType="ButtonType.Reset">Cancel</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="@Cancel" ButtonType="ButtonType.Reset">Cancel</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@(string.IsNullOrWhiteSpace(_externalJsonFile))" OnClick="@Submit">
             Save Changes
         </MudButton>

@@ -60,13 +60,41 @@ public class FFmpegSegmenterService(ILogger<FFmpegSegmenterService> logger) : IF
 
     public async Task<bool> StopChannel(string channelNumber, CancellationToken cancellationToken)
     {
-        if (_sessionWorkers.TryGetValue(channelNumber, out IHlsSessionWorker worker))
+        if (!_sessionWorkers.TryGetValue(channelNumber, out IHlsSessionWorker worker))
         {
-            if (worker != null)
-            {
-                await worker.Cancel(cancellationToken);
-                return true;
-            }
+            return false;
+        }
+
+        if (worker is null)
+        {
+            // Placeholder left behind if session start failed after TryAddWorker(null).
+            RemoveWorker(channelNumber, out _);
+            return true;
+        }
+
+        await worker.Cancel(cancellationToken);
+        return true;
+    }
+
+    public bool PauseChannel(string channelNumber)
+    {
+        if (_sessionWorkers.TryGetValue(channelNumber, out IHlsSessionWorker worker) && worker is not null)
+        {
+            worker.PausePlayback();
+            OnWorkersChanged?.Invoke(this, EventArgs.Empty);
+            return true;
+        }
+
+        return false;
+    }
+
+    public bool ResumeChannel(string channelNumber)
+    {
+        if (_sessionWorkers.TryGetValue(channelNumber, out IHlsSessionWorker worker) && worker is not null)
+        {
+            worker.ResumePlayback();
+            OnWorkersChanged?.Invoke(this, EventArgs.Empty);
+            return true;
         }
 
         return false;

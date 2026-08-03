@@ -1,0 +1,18 @@
+<div class="@($"form-section {Class}")">
+    @if (!string.IsNullOrWhiteSpace(Title))
+    {
+        <MudText Typo="Typo.h6" Class="mb-3">@Title</MudText>
+    }
+    @ChildContent
+</div>
+
+@code {
+    [Parameter]
+    public string Title { get; set; }
+
+    [Parameter]
+    public string Class { get; set; }
+
+    [Parameter]
+    public RenderFragment ChildContent { get; set; }
+}

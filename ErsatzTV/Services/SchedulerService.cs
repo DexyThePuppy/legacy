@@ -17,6 +17,7 @@ using ErsatzTV.Core.Interfaces.FFmpeg;
 using ErsatzTV.Core.Interfaces.Locking;
 using ErsatzTV.Core.Scheduling;
 using ErsatzTV.Infrastructure.Data;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace ErsatzTV.Services;
@@ -122,6 +123,14 @@ public class SchedulerService : BackgroundService
             await DeleteOrphanedArtwork(cancellationToken);
             await RefreshMpegTsScripts(cancellationToken);
             await RefreshChannelGuideChannelList(cancellationToken);
+
+            // Reset builds that failed while collections were empty (e.g. YouTube index race)
+            using (IServiceScope scope = _serviceScopeFactory.CreateScope())
+            {
+                IMediator mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+                await mediator.Send(new RebuildFailedPlayouts(), cancellationToken);
+            }
+
             await BuildPlayouts(cancellationToken);
 #if !DEBUG_NO_SYNC
             await ScanLocalMediaSources(cancellationToken);

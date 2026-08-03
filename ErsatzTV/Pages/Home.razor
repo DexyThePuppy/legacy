@@ -1,0 +1,208 @@
+@page "/"
+@using ErsatzTV.Application.Channels
+@using ErsatzTV.Application.Libraries
+@implements IDisposable
+@inject IMediator Mediator
+@inject NavigationManager NavigationManager
+@inject SystemStartup SystemStartup
+@inject IStringLocalizer<ErsatzTV.Locals.Shared.MainLayout> Loc
+
+<MudForm Style="max-height: 100%">
+    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
+            @if (!SystemStartup.IsDatabaseReady)
+            {
+                <MudPaper Class="pa-6" Elevation="0">
+                    <MudText Typo="Typo.h4">Database is initializing</MudText>
+                    <MudText Class="mt-2">Please wait, this may take a few minutes.</MudText>
+                    <MudProgressCircular Class="mt-4" Color="Color.Primary" Size="Size.Medium" Indeterminate="true"/>
+                </MudPaper>
+            }
+            else if (!SystemStartup.IsSearchIndexReady)
+            {
+                <MudPaper Class="pa-6" Elevation="0">
+                    <MudText Typo="Typo.h4">Search Index is initializing</MudText>
+                    <MudText Class="mt-2">Please wait, this may take a few minutes.</MudText>
+                    <MudProgressCircular Class="mt-4" Color="Color.Primary" Size="Size.Medium" Indeterminate="true"/>
+                </MudPaper>
+            }
+            else
+            {
+                <PageHeader Title="@Loc["ButtonHome"]" Subtitle="Library → Channel → Watch"/>
+                <PageSurface>
+                    <MudStack Spacing="4">
+                        <MudText Typo="Typo.body1">
+                            Connect a library, create a channel, then preview or tune in with M3U / XMLTV.
+                        </MudText>
+
+                        <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2">
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.VideoLibrary"
+                                       Href="media">
+                                @Loc["ButtonLibrary"]
+                            </MudButton>
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Add"
+                                       Href="channels/add">
+                                Create Channel
+                            </MudButton>
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Info"
+                                       StartIcon="@Icons.Material.Filled.PlaylistPlay"
+                                       Href="iptv/channels.m3u"
+                                       Target="_blank">
+                                @Loc["ButtonM3U"]
+                            </MudButton>
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Info"
+                                       StartIcon="@Icons.Material.Filled.RssFeed"
+                                       Href="iptv/xmltv.xml"
+                                       Target="_blank">
+                                @Loc["ButtonXmltv"]
+                            </MudButton>
+                        </MudStack>
+
+                        <MudDivider Class="my-2"/>
+
+                        <MudText Typo="Typo.h6">Next steps</MudText>
+                        <MudList T="string" Dense="true">
+                            <MudListItem Icon="@Icons.Material.Filled.Cloud"
+                                         IconColor="@(_libraryCount == 0 ? Color.Warning : Color.Success)"
+                                         Href="media">
+                                @if (_libraryCount == 0)
+                                {
+                                    <MudText>Connect a media source or local library</MudText>
+                                }
+                                else
+                                {
+                                    <MudText>@_libraryCount librar@(_libraryCount == 1 ? "y" : "ies") configured</MudText>
+                                }
+                            </MudListItem>
+                            <MudListItem Icon="@Icons.Material.Filled.Tv"
+                                         IconColor="@(_liveCount == 0 ? Color.Warning : Color.Success)"
+                                         Href="channels">
+                                @if (_liveCount == 0)
+                                {
+                                    <MudText>
+                                        @if (_setupNeededCount > 0)
+                                        {
+                                            <span>@_setupNeededCount channel@(_setupNeededCount == 1 ? "" : "s") need setup (no playout yet)</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Create your first channel</span>
+                                        }
+                                    </MudText>
+                                }
+                                else
+                                {
+                                    <MudText>@_liveCount live channel@(_liveCount == 1 ? "" : "s") ready to watch</MudText>
+                                }
+                            </MudListItem>
+                            @if (_seedChannelId is not null)
+                            {
+                                <MudListItem Icon="@Icons.Material.Filled.Build"
+                                             IconColor="Color.Info"
+                                             Href="@($"channels/{_seedChannelId}")">
+                                    <MudText>Set up seeded channel #1 (ErsatzTV)</MudText>
+                                </MudListItem>
+                            }
+                            @if (_failedBuildCount > 0)
+                            {
+                                <MudListItem Icon="@Icons.Material.Filled.Warning"
+                                             IconColor="Color.Warning"
+                                             Href="playouts">
+                                    <MudText>@_failedBuildCount playout build@(_failedBuildCount == 1 ? "" : "s") failed</MudText>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    </MudStack>
+                </PageSurface>
+            }
+        </MudContainer>
+    </div>
+</MudForm>
+
+@code {
+    private CancellationTokenSource _cts;
+    private int _libraryCount;
+    private int _liveCount;
+    private int _setupNeededCount;
+    private int _failedBuildCount;
+    private int? _seedChannelId;
+
+    protected override void OnInitialized()
+    {
+        SystemStartup.OnDatabaseReady += OnStartupProgress;
+        SystemStartup.OnSearchIndexReady += OnStartupProgress;
+    }
+
+    public void Dispose()
+    {
+        SystemStartup.OnDatabaseReady -= OnStartupProgress;
+        SystemStartup.OnSearchIndexReady -= OnStartupProgress;
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    private async void OnStartupProgress(object sender, EventArgs e)
+    {
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+            if (SystemStartup.IsDatabaseReady && SystemStartup.IsSearchIndexReady)
+            {
+                await ReloadAsync();
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (!SystemStartup.IsDatabaseReady || !SystemStartup.IsSearchIndexReady)
+        {
+            return;
+        }
+
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        CancellationToken token = _cts.Token;
+
+        try
+        {
+            List<LibraryViewModel> libraries = await Mediator.Send(new GetConfiguredLibraries(), token);
+            _libraryCount = libraries.Count;
+
+            List<ChannelHubSummaryViewModel> channels =
+                await Mediator.Send(new GetChannelsHubSummary(true), token);
+
+            _liveCount = channels.Count(c => c.IsLive);
+            _setupNeededCount = channels.Count(c => c.IsEnabled && !c.HasPlayout);
+            _failedBuildCount = channels.Count(c => c.LastBuildSuccess == false);
+            _seedChannelId = channels
+                .Find(c =>
+                    c.Number == "1" &&
+                    string.Equals(c.Name, "ErsatzTV", StringComparison.OrdinalIgnoreCase) &&
+                    !c.HasPlayout)
+                ?.Id;
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+            // ignore
+        }
+    }
+}

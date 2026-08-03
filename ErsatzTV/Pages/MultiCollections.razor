@@ -1,4 +1,4 @@
-﻿@page "/media/multi-collections"
+@page "/media/multi-collections"
 @using ErsatzTV.Application.Configuration
 @using ErsatzTV.Application.MediaCollections
 @implements IDisposable
@@ -6,7 +6,7 @@
 @inject IMediator Mediator
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
         <div style="display: flex; flex-direction: row; margin-bottom: auto; margin-top: auto; width: 100%" class="ml-6 mr-6">
             <div style="margin-right: auto" class="d-none d-md-flex">
                 <MudButton Class="ml-3" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PlaylistAdd" Href="media/multi-collections/add">
@@ -23,8 +23,7 @@
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Multi Collections</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Multi Collections"/>
             <MudTable Hover="true"
                       @bind-RowsPerPage="@_multiCollectionsRowsPerPage"
                       ServerData="@(new Func<TableState, CancellationToken, Task<TableData<MultiCollectionViewModel>>>(ServerReloadMultiCollections))"

@@ -24,7 +24,7 @@ public abstract class FFmpegProcessHandler<T> : IRequestHandler<T, Either<BaseEr
         return await validation.Match(
             tuple => GetProcess(
                 dbContext,
-                request with { Now = request.Now - (tuple.Item1.PlayoutOffset ?? TimeSpan.Zero) },
+                request with { Now = ChannelPlaybackClock.GetEffectiveNow(tuple.Item1, request.Now) },
                 tuple.Item1,
                 tuple.Item2,
                 tuple.Item3,

@@ -139,6 +139,12 @@ public class ResourceExtractorService : BackgroundService
             "_up-next.yml",
             FileSystemLayout.GraphicsElementsHtmlTemplatesFolder,
             stoppingToken);
+
+        await ExtractGraphicsElementResource(
+            assembly,
+            "_video-index.yml",
+            FileSystemLayout.GraphicsElementsHtmlTemplatesFolder,
+            stoppingToken);
     }
 
     private static async Task ExtractResource(Assembly assembly, string name, CancellationToken cancellationToken)
@@ -146,8 +152,16 @@ public class ResourceExtractorService : BackgroundService
         await using Stream resource = assembly.GetManifestResourceStream($"ErsatzTV.Resources.{name}");
         if (resource != null)
         {
-            await using FileStream fs = File.Create(Path.Combine(FileSystemLayout.ResourcesCacheFolder, name));
-            await resource.CopyToAsync(fs, cancellationToken);
+            string target = Path.Combine(FileSystemLayout.ResourcesCacheFolder, name);
+            try
+            {
+                await using FileStream fs = File.Create(target);
+                await resource.CopyToAsync(fs, cancellationToken);
+            }
+            catch (IOException) when (File.Exists(target))
+            {
+                // another process (e.g. ffmpeg) may hold an extracted resource open; keep the existing file
+            }
         }
     }
 
@@ -156,14 +170,22 @@ public class ResourceExtractorService : BackgroundService
         await using Stream resource = assembly.GetManifestResourceStream($"ErsatzTV.Resources.Fonts.{name}");
         if (resource != null)
         {
-            await using FileStream fs = File.Create(Path.Combine(FileSystemLayout.ResourcesCacheFolder, name));
-            await resource.CopyToAsync(fs, cancellationToken);
+            string resourceTarget = Path.Combine(FileSystemLayout.ResourcesCacheFolder, name);
+            string fontTarget = Path.Combine(FileSystemLayout.FontsCacheFolder, name);
+            try
+            {
+                await using FileStream fs = File.Create(resourceTarget);
+                await resource.CopyToAsync(fs, cancellationToken);
 
-            resource.Position = 0;
+                resource.Position = 0;
 
-            await using FileStream fontCacheFileStream =
-                File.Create(Path.Combine(FileSystemLayout.FontsCacheFolder, name));
-            await resource.CopyToAsync(fontCacheFileStream, cancellationToken);
+                await using FileStream fontCacheFileStream = File.Create(fontTarget);
+                await resource.CopyToAsync(fontCacheFileStream, cancellationToken);
+            }
+            catch (IOException) when (File.Exists(resourceTarget) || File.Exists(fontTarget))
+            {
+                // keep existing extracted fonts if another process has them open
+            }
         }
     }
 

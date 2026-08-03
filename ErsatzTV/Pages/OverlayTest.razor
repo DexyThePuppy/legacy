@@ -1,0 +1,771 @@
+@page "/overlays/{Id:int}/test"
+@using System.Globalization
+@using System.Text
+@using System.Text.RegularExpressions
+@using ErsatzTV.Application.Graphics
+@using ErsatzTV.Core
+@using ErsatzTV.FFmpeg.State
+@implements IAsyncDisposable
+@inject NavigationManager NavigationManager
+@inject ILogger<OverlayTest> Logger
+@inject ISnackbar Snackbar
+@inject IMediator Mediator
+@inject IJSRuntime JsRuntime
+
+<div class="overlay-test">
+    <MudPaper Square="true" Class="page-toolbar overlay-test-bar" Elevation="0">
+        <MudButton Variant="Variant.Text" Class="ml-2" Href="overlays" StartIcon="@Icons.Material.Filled.ArrowBack">
+            Back
+        </MudButton>
+        <MudText Typo="Typo.subtitle1" Class="ml-2">@_model.Name</MudText>
+        <MudSpacer/>
+        <MudButtonGroup Variant="Variant.Outlined" Color="Color.Primary" Class="mr-3">
+            <MudButton Variant="@(_overlayVisible ? Variant.Filled : Variant.Outlined)" OnClick="@(_ => SetVisibilityAsync(true))">Show</MudButton>
+            <MudButton Variant="@(!_overlayVisible ? Variant.Filled : Variant.Outlined)" OnClick="@(_ => SetVisibilityAsync(false))">Hide</MudButton>
+        </MudButtonGroup>
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Secondary"
+                   Class="mr-3"
+                   StartIcon="@Icons.Material.Filled.OpenInNew"
+                   Href="@RawHtmlHref"
+                   Target="_blank">
+            Raw HTML
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mr-4" StartIcon="@Icons.Material.Filled.Save" OnClick="@(_ => SaveAsync())">
+            Save
+        </MudButton>
+    </MudPaper>
+
+    <div class="overlay-test-body">
+        <div class="overlay-test-preview-pane">
+            <div class="overlay-test-stage-host">
+                <div class="overlay-test-stage">
+                    <div class="overlay-test-backdrop"></div>
+                    <iframe id="@_iframeId"
+                            title="Overlay preview"
+                            class="overlay-test-frame"
+                            style="@FrameStyle"
+                            sandbox="allow-scripts"
+                            referrerpolicy="no-referrer">
+                    </iframe>
+                </div>
+            </div>
+        </div>
+
+        <div class="overlay-test-editor">
+            <div class="overlay-test-sample d-flex gap-2 mb-3">
+                <MudTextField T="string" Label="Title" @bind-Value="_title" @bind-Value:after="QueueRenderAsync" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense"/>
+                <MudTextField T="string" Label="Next Title" @bind-Value="_nextTitle" @bind-Value:after="QueueRenderAsync" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense"/>
+            </div>
+            <div class="overlay-test-tabs">
+                <div class="overlay-test-tabbar">
+                    <button type="button" class="@TabClass(EditorTab.Html)" @onclick="@(() => _editorTab = EditorTab.Html)">HTML</button>
+                    <button type="button" class="@TabClass(EditorTab.Css)" @onclick="@(() => _editorTab = EditorTab.Css)">CSS</button>
+                    <button type="button" class="@TabClass(EditorTab.Js)" @onclick="@(() => _editorTab = EditorTab.Js)">JS</button>
+                    <button type="button" class="@TabClass(EditorTab.Triggers)" @onclick="@(() => _editorTab = EditorTab.Triggers)">Triggers</button>
+                </div>
+                <div class="overlay-test-tab-panel">
+                    @if (_editorTab == EditorTab.Html)
+                    {
+                        <MudTextField T="string"
+                                      Class="overlay-test-code"
+                                      @bind-Value="_htmlPart"
+                                      @bind-Value:after="ComposeAndRenderAsync"
+                                      Immediate="true"
+                                      Lines="20"
+                                      Variant="Variant.Outlined"
+                                      Style="font-family: ui-monospace, Consolas, monospace; font-size: 12px"/>
+                    }
+                    else if (_editorTab == EditorTab.Css)
+                    {
+                        <MudTextField T="string"
+                                      Class="overlay-test-code"
+                                      @bind-Value="_cssPart"
+                                      @bind-Value:after="ComposeAndRenderAsync"
+                                      Immediate="true"
+                                      Lines="20"
+                                      Variant="Variant.Outlined"
+                                      Style="font-family: ui-monospace, Consolas, monospace; font-size: 12px"/>
+                    }
+                    else if (_editorTab == EditorTab.Js)
+                    {
+                        <MudTextField T="string"
+                                      Class="overlay-test-code"
+                                      @bind-Value="_jsPart"
+                                      @bind-Value:after="ComposeAndRenderAsync"
+                                      Immediate="true"
+                                      Lines="20"
+                                      Variant="Variant.Outlined"
+                                      Style="font-family: ui-monospace, Consolas, monospace; font-size: 12px"/>
+                    }
+                    else
+                    {
+                        <div class="overlay-test-triggers">
+                            <div class="overlay-test-trigger-group">
+                                <p class="overlay-test-trigger-title">Visibility</p>
+                                <div class="overlay-test-trigger-actions">
+                                    <MudButton Variant="@(_overlayVisible ? Variant.Filled : Variant.Outlined)"
+                                               Color="Color.Primary"
+                                               OnClick="@(_ => SetVisibilityAsync(true))">
+                                        Show
+                                    </MudButton>
+                                    <MudButton Variant="@(!_overlayVisible ? Variant.Filled : Variant.Outlined)"
+                                               Color="Color.Primary"
+                                               OnClick="@(_ => SetVisibilityAsync(false))">
+                                        Hide
+                                    </MudButton>
+                                </div>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary mt-2">
+                                    Plays the overlay enter / exit animation without remounting the preview.
+                                </MudText>
+                            </div>
+
+                            <div class="overlay-test-trigger-group">
+                                <p class="overlay-test-trigger-title">Index</p>
+                                <div class="overlay-test-trigger-actions">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Remove"
+                                                   Variant="Variant.Outlined"
+                                                   Color="Color.Primary"
+                                                   Disabled="@(_epgIndex <= 0)"
+                                                   OnClick="@(_ => ShiftEpgIndexAsync(-1))"/>
+                                    <MudText Typo="Typo.h6" Class="overlay-test-trigger-index">@_epgIndex</MudText>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add"
+                                                   Variant="Variant.Outlined"
+                                                   Color="Color.Primary"
+                                                   Disabled="@(_epgIndex >= GetOverlayPreviewHtmlHandler.SampleEpgCount - 1)"
+                                                   OnClick="@(_ => ShiftEpgIndexAsync(1))"/>
+                                </div>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary mt-2">
+                                    Re-plays the enter animation, then slides to the next index.
+                                </MudText>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_renderError))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@_renderError</MudAlert>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .overlay-test {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - var(--mud-appbar-height, 64px));
+        max-height: calc(100vh - var(--mud-appbar-height, 64px));
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .overlay-test-bar {
+        display: flex;
+        align-items: center;
+        height: 56px;
+        min-height: 56px;
+        z-index: 2;
+    }
+
+    .overlay-test-body {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .overlay-test-preview-pane {
+        flex: 1 1 55%;
+        min-width: 0;
+        padding: 0;
+        overflow: hidden;
+    }
+
+    .overlay-test-editor {
+        flex: 1 1 45%;
+        min-width: 320px;
+        max-width: 560px;
+        padding: 0.75rem;
+        overflow: auto;
+        border-left: 1px solid rgba(255,255,255,0.08);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .overlay-test-sample > * {
+        flex: 1;
+    }
+
+    .overlay-test-tabs {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .overlay-test-tabbar {
+        display: flex;
+        width: 100%;
+        border-bottom: 1px solid rgba(255,255,255,0.12);
+    }
+
+    .overlay-test-tabbar > button {
+        flex: 1 1 0;
+        min-width: 0;
+        height: 44px;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        background: transparent;
+        color: rgba(255,255,255,0.75);
+        font: 600 0.875rem/1 "Segoe UI", system-ui, sans-serif;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+    }
+
+    .overlay-test-tabbar > button:hover {
+        color: #fff;
+        background: rgba(255,255,255,0.04);
+    }
+
+    .overlay-test-tabbar > button.active {
+        color: var(--mud-palette-primary);
+        border-bottom-color: var(--mud-palette-primary);
+    }
+
+    .overlay-test-tab-panel {
+        flex: 1;
+        min-height: 0;
+        padding-top: 0.75rem;
+        overflow: hidden;
+    }
+
+    .overlay-test-code {
+        height: 100%;
+    }
+
+    .overlay-test-triggers {
+        height: 100%;
+        overflow: auto;
+        padding-right: 0.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .overlay-test-trigger-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .overlay-test-trigger-title {
+        margin: 0;
+        font: 600 0.75rem/1.2 "Segoe UI", system-ui, sans-serif;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.55);
+    }
+
+    .overlay-test-trigger-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .overlay-test-trigger-index {
+        min-width: 2rem;
+        text-align: center;
+        margin: 0;
+    }
+
+    .overlay-test-stage-host {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0b0d10;
+        container-type: size;
+    }
+
+    .overlay-test-stage {
+        position: relative;
+        aspect-ratio: 16 / 9;
+        width: min(100cqw, calc(100cqh * 16 / 9));
+        max-width: 100%;
+        max-height: 100%;
+        overflow: hidden;
+        background: #111;
+    }
+
+    .overlay-test-backdrop {
+        position: absolute;
+        inset: 0;
+        background:
+            linear-gradient(135deg, rgba(40,60,90,0.55), rgba(20,20,24,0.85)),
+            repeating-linear-gradient(45deg, #1a1d22 0 16px, #15181c 16px 32px);
+    }
+
+    .overlay-test-frame {
+        position: absolute;
+        border: 0;
+        background: transparent;
+        overflow: hidden;
+        pointer-events: none;
+    }
+</style>
+
+@code {
+    private readonly string _iframeId = $"overlay-preview-{Guid.NewGuid():N}";
+
+    private CancellationTokenSource _cts;
+    private CancellationTokenSource _renderCts;
+
+    private OverlayEditViewModel _model = new();
+    private string _htmlPart = string.Empty;
+    private string _cssPart = string.Empty;
+    private string _jsPart = string.Empty;
+    private string _title = "Sample Episode Title";
+    private string _nextTitle = "Next Video Title";
+    private bool _overlayVisible = true;
+    private int _epgIndex;
+    private string _epgSlideDirection = "next";
+    private EditorTab _editorTab = EditorTab.Html;
+    private string _renderError;
+    private string _lastRenderedHtml;
+    private bool _previewDirty = true;
+    private bool _jsReady;
+
+    private enum EditorTab
+    {
+        Html,
+        Css,
+        Js,
+        Triggers
+    }
+
+    private string TabClass(EditorTab tab) =>
+        _editorTab == tab ? "active" : string.Empty;
+
+    private string RawHtmlHref
+    {
+        get
+        {
+            string title = Uri.EscapeDataString(_title ?? string.Empty);
+            string next = Uri.EscapeDataString(_nextTitle ?? string.Empty);
+            return $"overlays/{Id}/raw.html?title={title}&nextTitle={next}";
+        }
+    }
+
+    private static readonly Regex StyleBlockRegex = new(
+        @"<style\b[^>]*>(.*?)</style>",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+
+    private static readonly Regex ScriptBlockRegex = new(
+        @"<script\b[^>]*>(.*?)</script>",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+
+    private static readonly Regex BodyBlockRegex = new(
+        @"<body\b[^>]*>(.*?)</body>",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+
+    [Parameter]
+    public int Id { get; set; }
+
+    private string FrameStyle
+    {
+        get
+        {
+            // Percent-based layout so the overlay scales with the browser/preview pane.
+            double width = _model.WidthPercent <= 0 ? 100 : _model.WidthPercent;
+            double height = _model.HeightPercent <= 0 ? 100 : _model.HeightPercent;
+            double hMargin = Math.Max(0, _model.HorizontalMarginPercent);
+            double vMargin = Math.Max(0, _model.VerticalMarginPercent);
+
+            (double left, double top) = _model.Location switch
+            {
+                WatermarkLocation.BottomLeft => (hMargin, 100 - height - vMargin),
+                WatermarkLocation.TopLeft => (hMargin, vMargin),
+                WatermarkLocation.TopRight => (100 - width - hMargin, vMargin),
+                WatermarkLocation.TopMiddle => ((100 - width) / 2, vMargin),
+                WatermarkLocation.RightMiddle => (100 - width - hMargin, (100 - height) / 2),
+                WatermarkLocation.BottomMiddle => ((100 - width) / 2, 100 - height - vMargin),
+                WatermarkLocation.LeftMiddle => (hMargin, (100 - height) / 2),
+                WatermarkLocation.MiddleCenter => ((100 - width) / 2 + hMargin, (100 - height) / 2 + vMargin),
+                _ => (100 - width - hMargin, 100 - height - vMargin)
+            };
+
+            double opacity = Math.Clamp(_model.OpacityPercent, 0, 100) / 100.0;
+            return
+                $"left:{left.ToString(CultureInfo.InvariantCulture)}%;" +
+                $"top:{top.ToString(CultureInfo.InvariantCulture)}%;" +
+                $"width:{width.ToString(CultureInfo.InvariantCulture)}%;" +
+                $"height:{height.ToString(CultureInfo.InvariantCulture)}%;" +
+                $"opacity:{opacity.ToString(CultureInfo.InvariantCulture)};";
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        CancellationToken token = _cts.Token;
+
+        try
+        {
+            Option<OverlayEditViewModel> maybeOverlay = await Mediator.Send(new GetOverlayById(Id), token);
+            await maybeOverlay.Match(
+                async overlay =>
+                {
+                    if (overlay.Kind is not ErsatzTV.Core.Domain.GraphicsElementKind.Html || !overlay.IsParsed)
+                    {
+                        Snackbar.Add("Only HTML overlays can be tested here", Severity.Warning);
+                        NavigationManager.NavigateTo("overlays");
+                        return;
+                    }
+
+                    _model = overlay;
+                    SplitDocument(_model.Html);
+                    _previewDirty = true;
+                    if (_jsReady)
+                    {
+                        await QueueRenderAsync();
+                    }
+                },
+                () =>
+                {
+                    NavigationManager.NavigateTo("404");
+                    return Task.CompletedTask;
+                });
+        }
+        catch (OperationCanceledException)
+        {
+            // do nothing
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_jsReady)
+        {
+            try
+            {
+                // Touch JS runtime so we know the circuit is interactive.
+                await JsRuntime.InvokeVoidAsync("overlayTest.ping");
+                _jsReady = true;
+                await QueueRenderAsync();
+            }
+            catch (InvalidOperationException)
+            {
+                // prerender — retry next render
+            }
+            catch (JSException ex)
+            {
+                Logger.LogDebug(ex, "Overlay test JS not ready yet");
+            }
+
+            return;
+        }
+
+        if (!_previewDirty || string.IsNullOrEmpty(_lastRenderedHtml))
+        {
+            return;
+        }
+
+        try
+        {
+            await JsRuntime.InvokeVoidAsync("overlayTest.setSrcdoc", _iframeId, _lastRenderedHtml);
+            _previewDirty = false;
+            if (!_overlayVisible)
+            {
+                await JsRuntime.InvokeAsync<bool>("overlayTest.setVisibility", _iframeId, false, false);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // not interactive yet
+        }
+        catch (JSException)
+        {
+            // iframe not in DOM
+        }
+    }
+
+    private Task ComposeAndRenderAsync()
+    {
+        _model.Html = ComposeDocument(_htmlPart, _cssPart, _jsPart);
+        _previewDirty = true;
+        return QueueRenderAsync();
+    }
+
+    private void SplitDocument(string document)
+    {
+        document ??= string.Empty;
+
+        var cssParts = StyleBlockRegex.Matches(document)
+            .Select(m => m.Groups[1].Value.Trim())
+            .Where(s => s.Length > 0)
+            .ToList();
+        _cssPart = string.Join("\n\n", cssParts);
+
+        var jsParts = ScriptBlockRegex.Matches(document)
+            .Select(m => m.Groups[1].Value.Trim())
+            .Where(s => s.Length > 0)
+            .ToList();
+        _jsPart = string.Join("\n\n", jsParts);
+
+        Match bodyMatch = BodyBlockRegex.Match(document);
+        if (bodyMatch.Success)
+        {
+            string body = bodyMatch.Groups[1].Value;
+            body = ScriptBlockRegex.Replace(body, string.Empty);
+            _htmlPart = body.Trim();
+        }
+        else
+        {
+            string withoutStyles = StyleBlockRegex.Replace(document, string.Empty);
+            string withoutScripts = ScriptBlockRegex.Replace(withoutStyles, string.Empty);
+            _htmlPart = withoutScripts.Trim();
+        }
+    }
+
+    private static string ComposeDocument(string html, string css, string js)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("<!DOCTYPE html>");
+        sb.AppendLine("<html>");
+        sb.AppendLine("<head>");
+        sb.AppendLine("  <style>");
+        sb.AppendLine(css?.TrimEnd() ?? string.Empty);
+        sb.AppendLine("  </style>");
+        sb.AppendLine("</head>");
+        sb.AppendLine("<body>");
+        sb.AppendLine(html?.TrimEnd() ?? string.Empty);
+        if (!string.IsNullOrWhiteSpace(js))
+        {
+            sb.AppendLine("  <script>");
+            sb.AppendLine(js.TrimEnd());
+            sb.AppendLine("  </script>");
+        }
+
+        sb.AppendLine("</body>");
+        sb.AppendLine("</html>");
+        return sb.ToString();
+    }
+
+    private async Task SetVisibilityAsync(bool visible)
+    {
+        _overlayVisible = visible;
+        await InvokeAsync(StateHasChanged);
+
+        if (!_jsReady || string.IsNullOrEmpty(_lastRenderedHtml))
+        {
+            return;
+        }
+
+        try
+        {
+            // Show always replays the enter motion so the trigger is testable.
+            await JsRuntime.InvokeAsync<bool>("overlayTest.setVisibility", _iframeId, visible, visible);
+        }
+        catch (InvalidOperationException)
+        {
+            // not interactive yet
+        }
+        catch (JSException)
+        {
+            // overlay script not ready — fall back to remount
+            _previewDirty = true;
+            await QueueRenderAsync();
+        }
+    }
+
+    private async Task ShiftEpgIndexAsync(int delta)
+    {
+        int max = Math.Max(0, GetOverlayPreviewHtmlHandler.SampleEpgCount - 1);
+        int next = Math.Clamp(_epgIndex + delta, 0, max);
+        if (next == _epgIndex)
+        {
+            return;
+        }
+
+        _epgSlideDirection = delta < 0 ? "prev" : "next";
+        _epgIndex = next;
+        _overlayVisible = true;
+
+        if (!_jsReady || string.IsNullOrEmpty(_lastRenderedHtml))
+        {
+            _previewDirty = true;
+            await QueueRenderAsync();
+            return;
+        }
+
+        IReadOnlyList<OverlayPreviewEpgItem> epg =
+            GetOverlayPreviewHtmlHandler.BuildSampleEpg(_title, _nextTitle);
+        if (epg.Count == 0)
+        {
+            _previewDirty = true;
+            await QueueRenderAsync();
+            return;
+        }
+
+        OverlayPreviewEpgItem incoming = delta > 0
+            ? epg[(_epgIndex + 4) % epg.Count]
+            : epg[_epgIndex % epg.Count];
+
+        var payload = new
+        {
+            title = incoming.Title,
+            subTitle = incoming.SubTitle,
+            durationDisplay = incoming.DurationDisplay,
+            icon = incoming.Icon
+        };
+
+        try
+        {
+            bool slid = await JsRuntime.InvokeAsync<bool>(
+                "overlayTest.slideVideoIndex",
+                _iframeId,
+                payload,
+                _epgSlideDirection);
+            if (slid)
+            {
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // fall through to full render
+        }
+        catch (JSException)
+        {
+            // fall through to full render
+        }
+
+        _previewDirty = true;
+        await QueueRenderAsync();
+    }
+
+    private async Task QueueRenderAsync()
+    {
+        _renderCts?.Cancel();
+        _renderCts?.Dispose();
+        _renderCts = new CancellationTokenSource();
+        CancellationToken token = _renderCts.Token;
+
+        try
+        {
+            await Task.Delay(120, token);
+
+            string requestBase = !string.IsNullOrWhiteSpace(SystemEnvironment.BaseUrl)
+                ? SystemEnvironment.BaseUrl.TrimEnd('/')
+                : NavigationManager.BaseUri.TrimEnd('/');
+
+            Dictionary<string, object> variables = GetOverlayPreviewHtmlHandler.BuildSampleVariables(
+                requestBase,
+                _title ?? "Sample Episode Title",
+                _nextTitle ?? "Next Video Title",
+                _epgIndex,
+                _epgSlideDirection);
+
+            Either<BaseError, string> result =
+                await Mediator.Send(new RenderOverlayPreview(_model.Html ?? string.Empty, variables), token);
+
+            foreach (BaseError error in result.LeftToSeq())
+            {
+                _renderError = error.Value;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            foreach (string html in result.RightToSeq())
+            {
+                _renderError = null;
+                bool changed = !string.Equals(_lastRenderedHtml, html, StringComparison.Ordinal);
+                _lastRenderedHtml = html;
+                _previewDirty = changed || _previewDirty;
+                await InvokeAsync(StateHasChanged);
+
+                if (_jsReady && _previewDirty)
+                {
+                    try
+                    {
+                        await JsRuntime.InvokeVoidAsync("overlayTest.setSrcdoc", _iframeId, html);
+                        _previewDirty = false;
+                        if (!_overlayVisible)
+                        {
+                            await JsRuntime.InvokeAsync<bool>("overlayTest.setVisibility", _iframeId, false, false);
+                        }
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // OnAfterRenderAsync will push
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // superseded
+        }
+        catch (Exception ex)
+        {
+            _renderError = ex.Message;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            _model.Html = ComposeDocument(_htmlPart, _cssPart, _jsPart);
+            CancellationToken token = _cts?.Token ?? CancellationToken.None;
+            Either<BaseError, int> result = await Mediator.Send(
+                new SaveOverlay(
+                    Id,
+                    _model.Name,
+                    _model.Html,
+                    _model.Location,
+                    _model.HorizontalMarginPercent,
+                    _model.VerticalMarginPercent,
+                    _model.WidthPercent,
+                    _model.HeightPercent,
+                    _model.OpacityPercent,
+                    _model.OpacityExpression,
+                    _model.ZIndex,
+                    _model.CaptureFps,
+                    _model.EpgEntries,
+                    _model.StartSeconds,
+                    _model.DurationSeconds,
+                    _model.StartSecondsFromEnd,
+                    null),
+                token);
+
+            result.Match(
+                _ => Snackbar.Add("Saved", Severity.Success),
+                error => Snackbar.Add(error.Value, Severity.Error));
+        }
+        catch (OperationCanceledException)
+        {
+            // do nothing
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _renderCts?.Cancel();
+        _renderCts?.Dispose();
+        _cts?.Cancel();
+        _cts?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

@@ -29,6 +29,14 @@ public interface IYouTubeImportService
         int syncIntervalHours,
         CancellationToken cancellationToken);
 
+    Task<Either<BaseError, Unit>> UpdateStationLinkage(
+        string slug,
+        int? channelId,
+        int? smartCollectionId,
+        int? programScheduleId,
+        int? playoutId,
+        CancellationToken cancellationToken);
+
     Task<Either<BaseError, Unit>> DeleteImport(string slug, CancellationToken cancellationToken);
 
     string GetImportFolder(string slug);

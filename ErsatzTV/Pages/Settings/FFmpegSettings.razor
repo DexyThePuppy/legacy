@@ -15,13 +15,13 @@
 @inject IDialogService Dialog
 
 <MudForm @ref="_form" @bind-IsValid="@_success" Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(_ => SaveFFmpegSettings())" Class="ml-6" StartIcon="@Icons.Material.Filled.Save">Save Settings</MudButton>
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(_ => SaveFFmpegSettings())" StartIcon="@Icons.Material.Filled.Save">Save Settings</MudButton>
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">FFmpeg</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="FFmpeg"/>
+            <FormSection>
             <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                 <div class="d-flex">
                     <MudText>FFmpeg Path</MudText>
@@ -143,12 +143,11 @@
                     }
                 </MudSelect>
             </MudStack>
-            <MudText Typo="Typo.h5" Class="mb-2 mt-10">Custom Resolutions</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Custom Resolutions" Class="mt-10"/>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(_ => AddCustomResolution())" StartIcon="@Icons.Material.Filled.Add">
                 Add Custom Resolution
             </MudButton>
-            <MudTable Hover="true" Items="_customResolutions" Dense="true" Class="mt-6 mb-12" Style="max-width: 800px">
+            <MudTable Hover="true" Elevation="0" Items="_customResolutions" Dense="true" Class="mt-6 mb-12" Style="max-width: 800px">
                 <ColGroup>
                     <col/>
                     <col style="width: 60px;"/>
@@ -166,6 +165,8 @@
                     </MudTd>
                 </RowTemplate>
             </MudTable>
+        </FormSection>
+
         </MudContainer>
     </div>
 </MudForm>

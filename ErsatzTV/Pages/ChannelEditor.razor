@@ -1,5 +1,4 @@
-﻿@page "/channels/{Id:int?}"
-@page "/channels/add"
+@page "/channels/{Id:int}"
 @using System.Globalization
 @using ErsatzTV.Application.Artworks
 @using ErsatzTV.Application.Channels
@@ -21,13 +20,13 @@
 @inject IMediator Mediator
 
 <MudForm Model="@_model" @ref="@_form" Validation="@(_validator.ValidateValue)" ValidationDelay="0" Style="max-height: 100%">
-<MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" OnClick="@HandleSubmitAsync" StartIcon="@(IsEdit ? Icons.Material.Filled.Save : Icons.Material.Filled.Add)">@(IsEdit ? "Save Channel" : "Add Channel")</MudButton>
+<MudPaper Class="page-toolbar" Elevation="0" Square="true">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@HandleSubmitAsync" StartIcon="@Icons.Material.Filled.Save">Save Channel</MudButton>
 </MudPaper>
 <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-<MudText Typo="Typo.h5" Class="mb-2">Channel</MudText>
-<MudDivider Class="mb-6"/>
+<PageHeader Title="Channel" Subtitle="Essentials first — advanced options stay available below"/>
+<FormSection Title="Essentials" Class="mb-4">
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Number</MudText>
@@ -40,6 +39,21 @@
     </div>
     <MudTextField @bind-Value="_model.Name" For="@(() => _model.Name)"/>
 </MudStack>
+<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+    <div class="d-flex">
+        <MudText>Is Enabled</MudText>
+    </div>
+    <MudCheckBox @bind-Value="_model.IsEnabled" For="@(() => _model.IsEnabled)" Dense="true"/>
+</MudStack>
+<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+    <div class="d-flex">
+        <MudText>Show In EPG</MudText>
+    </div>
+    <MudCheckBox @bind-Value="_model.ShowInEpg" For="@(() => _model.ShowInEpg)" Dense="true"/>
+</MudStack>
+</FormSection>
+<MudExpansionPanels Class="mb-4" Elevation="0">
+<MudExpansionPanel Text="More options" Dense="true">
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Group</MudText>
@@ -69,6 +83,8 @@
         <MudSelectItem Value="@(ChannelIdleBehavior.KeepRunning)">Keep Running</MudSelectItem>
     </MudSelect>
 </MudStack>
+</MudExpansionPanel>
+<MudExpansionPanel Text="Expert" Dense="true">
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Playout Source</MudText>
@@ -120,18 +136,9 @@ else
         </MudSelect>
     </MudStack>
 }
-<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
-    <div class="d-flex">
-        <MudText>Is Enabled</MudText>
-    </div>
-    <MudCheckBox @bind-Value="_model.IsEnabled" For="@(() => _model.IsEnabled)" Dense="true"/>
-</MudStack>
-<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
-    <div class="d-flex">
-        <MudText>Show In EPG</MudText>
-    </div>
-    <MudCheckBox @bind-Value="_model.ShowInEpg" For="@(() => _model.ShowInEpg)" Dense="true"/>
-</MudStack>
+</MudExpansionPanel>
+</MudExpansionPanels>
+<FormSection Title="Streaming" Class="mb-4">
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Streaming Engine</MudText>
@@ -197,6 +204,9 @@ else
         <MudSelectItem Value="@((double?)5)">5 seconds</MudSelectItem>
     </MudSelect>
 </MudStack>
+</FormSection>
+<MudExpansionPanels Class="mb-4" Elevation="0">
+<MudExpansionPanel Text="Audio & subtitles" Dense="true">
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Stream Selector Mode</MudText>
@@ -270,38 +280,9 @@ else
         </MudSelect>
     </MudStack>
 }
-<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
-    <div class="d-flex">
-        <MudText>Music Video Credits Mode</MudText>
-    </div>
-    <MudSelect @bind-Value="_model.MusicVideoCreditsMode" For="@(() => _model.MusicVideoCreditsMode)">
-        <MudSelectItem Value="@(ChannelMusicVideoCreditsMode.None)">None</MudSelectItem>
-        <MudSelectItem Value="@(ChannelMusicVideoCreditsMode.GenerateSubtitles)">Generate Subtitles</MudSelectItem>
-    </MudSelect>
-</MudStack>
-<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
-    <div class="d-flex">
-        <MudText>Music Video Credits Template</MudText>
-    </div>
-    <MudSelect @bind-Value="_model.MusicVideoCreditsTemplate"
-               For="@(() => _model.MusicVideoCreditsTemplate)"
-               Disabled="@(_model.MusicVideoCreditsMode != ChannelMusicVideoCreditsMode.GenerateSubtitles)">
-        <MudSelectItem T="string" Value="@((string)null)">(none)</MudSelectItem>
-        @foreach (string template in _musicVideoCreditsTemplates)
-        {
-            <MudSelectItem T="string" Value="@template">@template</MudSelectItem>
-        }
-    </MudSelect>
-</MudStack>
-<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
-    <div class="d-flex">
-        <MudText>Song Video Mode</MudText>
-    </div>
-    <MudSelect @bind-Value="_model.SongVideoMode" For="@(() => _model.SongVideoMode)">
-        <MudSelectItem Value="@(ChannelSongVideoMode.Default)">Default</MudSelectItem>
-        <MudSelectItem Value="@(ChannelSongVideoMode.WithProgress)">With Progress</MudSelectItem>
-    </MudSelect>
-</MudStack>
+</MudExpansionPanel>
+</MudExpansionPanels>
+<FormSection Title="Look & fill" Class="mb-4">
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Logo</MudText>
@@ -372,6 +353,43 @@ else
         }
     </MudSelect>
 </MudStack>
+</FormSection>
+<MudExpansionPanels Class="mb-8" Elevation="0">
+<MudExpansionPanel Text="Expert — credits & song video" Dense="true">
+<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+    <div class="d-flex">
+        <MudText>Music Video Credits Mode</MudText>
+    </div>
+    <MudSelect @bind-Value="_model.MusicVideoCreditsMode" For="@(() => _model.MusicVideoCreditsMode)">
+        <MudSelectItem Value="@(ChannelMusicVideoCreditsMode.None)">None</MudSelectItem>
+        <MudSelectItem Value="@(ChannelMusicVideoCreditsMode.GenerateSubtitles)">Generate Subtitles</MudSelectItem>
+    </MudSelect>
+</MudStack>
+<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+    <div class="d-flex">
+        <MudText>Music Video Credits Template</MudText>
+    </div>
+    <MudSelect @bind-Value="_model.MusicVideoCreditsTemplate"
+               For="@(() => _model.MusicVideoCreditsTemplate)"
+               Disabled="@(_model.MusicVideoCreditsMode != ChannelMusicVideoCreditsMode.GenerateSubtitles)">
+        <MudSelectItem T="string" Value="@((string)null)">(none)</MudSelectItem>
+        @foreach (string template in _musicVideoCreditsTemplates)
+        {
+            <MudSelectItem T="string" Value="@template">@template</MudSelectItem>
+        }
+    </MudSelect>
+</MudStack>
+<MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
+    <div class="d-flex">
+        <MudText>Song Video Mode</MudText>
+    </div>
+    <MudSelect @bind-Value="_model.SongVideoMode" For="@(() => _model.SongVideoMode)">
+        <MudSelectItem Value="@(ChannelSongVideoMode.Default)">Default</MudSelectItem>
+        <MudSelectItem Value="@(ChannelSongVideoMode.WithProgress)">With Progress</MudSelectItem>
+    </MudSelect>
+</MudStack>
+</MudExpansionPanel>
+</MudExpansionPanels>
 </MudContainer>
 </div>
 </MudForm>
@@ -380,7 +398,7 @@ else
     private CancellationTokenSource _cts;
 
     [Parameter]
-    public int? Id { get; set; }
+    public int Id { get; set; }
 
     private readonly ChannelEditViewModel _model = new();
     private readonly ChannelEditViewModelValidator _validator = new();
@@ -425,75 +443,54 @@ else
 
             await Task.WhenAll(loadingTasks);
 
-            if (Id.HasValue)
-            {
-                Option<ChannelViewModel> maybeChannel = await Mediator.Send(new GetChannelById(Id.Value), token);
-                maybeChannel.Match(
-                    channelViewModel =>
+            Option<ChannelViewModel> maybeChannel = await Mediator.Send(new GetChannelById(Id), token);
+            maybeChannel.Match(
+                channelViewModel =>
+                {
+                    _model.Id = channelViewModel.Id;
+                    _model.Name = channelViewModel.Name;
+                    _model.Group = channelViewModel.Group;
+                    _model.Categories = channelViewModel.Categories;
+                    _model.Number = channelViewModel.Number;
+                    _model.FFmpegProfileId = channelViewModel.FFmpegProfileId;
+                    _model.SlugSeconds = channelViewModel.SlugSeconds;
+
+                    if (channelViewModel.Logo.IsExternalUrl)
                     {
-                        _model.Id = channelViewModel.Id;
-                        _model.Name = channelViewModel.Name;
-                        _model.Group = channelViewModel.Group;
-                        _model.Categories = channelViewModel.Categories;
-                        _model.Number = channelViewModel.Number;
-                        _model.FFmpegProfileId = channelViewModel.FFmpegProfileId;
-                        _model.SlugSeconds = channelViewModel.SlugSeconds;
+                        _model.ExternalLogoUrl = channelViewModel.Logo.Path;
+                    }
+                    else
+                    {
+                        _model.Logo = channelViewModel.Logo;
+                    }
 
-                        if (channelViewModel.Logo.IsExternalUrl)
-                        {
-                            _model.ExternalLogoUrl = channelViewModel.Logo.Path;
-                        }
-                        else
-                        {
-                            _model.Logo = channelViewModel.Logo;
-                        }
-
-                        _model.PlayoutSource = channelViewModel.PlayoutSource;
-                        _model.PlayoutMode = channelViewModel.PlayoutMode;
-                        _model.MirrorSourceChannelId = channelViewModel.MirrorSourceChannelId;
-                        _model.PlayoutOffset = channelViewModel.PlayoutOffset;
-                        _model.StreamingEngine = channelViewModel.StreamingEngine;
-                        _model.NextEngineTextSubtitleMode = channelViewModel.NextEngineTextSubtitleMode;
-                        _model.StreamingMode = channelViewModel.StreamingMode;
-                        _model.StreamSelectorMode = channelViewModel.StreamSelectorMode;
-                        _model.StreamSelector = channelViewModel.StreamSelector;
-                        _model.PreferredAudioLanguageCode = channelViewModel.PreferredAudioLanguageCode;
-                        _model.PreferredAudioTitle = channelViewModel.PreferredAudioTitle;
-                        _model.WatermarkId = channelViewModel.WatermarkId;
-                        _model.GraphicsElements = _graphicsElements
-                            .Where(ge => channelViewModel.GraphicsElementIds.Contains(ge.Id))
-                            .ToList();
-                        _model.FallbackFillerId = channelViewModel.FallbackFillerId;
-                        _model.PreferredSubtitleLanguageCode = channelViewModel.PreferredSubtitleLanguageCode;
-                        _model.SubtitleMode = channelViewModel.SubtitleMode;
-                        _model.MusicVideoCreditsMode = channelViewModel.MusicVideoCreditsMode;
-                        _model.MusicVideoCreditsTemplate = channelViewModel.MusicVideoCreditsTemplate;
-                        _model.SongVideoMode = channelViewModel.SongVideoMode;
-                        _model.TranscodeMode = channelViewModel.TranscodeMode;
-                        _model.IdleBehavior = channelViewModel.IdleBehavior;
-                        _model.IsEnabled = channelViewModel.IsEnabled;
-                        _model.ShowInEpg = channelViewModel.ShowInEpg;
-                    },
-                    () => NavigationManager.NavigateTo("404"));
-            }
-            else
-            {
-                FFmpegSettingsViewModel ffmpegSettings = await Mediator.Send(new GetFFmpegSettings(), token);
-
-                // TODO: command for new channel
-                IEnumerable<int> channelNumbers = await Mediator.Send(new GetAllChannels(), token)
-                    .Map(list => list.Map(c => int.TryParse(c.Number.Split(".").Head(), out int result) ? result : 0));
-                int maxNumber = Optional(channelNumbers).Flatten().DefaultIfEmpty(0).Max();
-                _model.Number = (maxNumber + 1).ToString();
-                _model.Name = "New Channel";
-                _model.Group = "ErsatzTV";
-                _model.FFmpegProfileId = ffmpegSettings.DefaultFFmpegProfileId;
-                _model.StreamingEngine = StreamingEngine.Legacy;
-                _model.NextEngineTextSubtitleMode = NextEngineTextSubtitleMode.Burn;
-                _model.StreamingMode = StreamingMode.TransportStreamHybrid;
-                _model.IsEnabled = true;
-                _model.ShowInEpg = true;
-            }
+                    _model.PlayoutSource = channelViewModel.PlayoutSource;
+                    _model.PlayoutMode = channelViewModel.PlayoutMode;
+                    _model.MirrorSourceChannelId = channelViewModel.MirrorSourceChannelId;
+                    _model.PlayoutOffset = channelViewModel.PlayoutOffset;
+                    _model.StreamingEngine = channelViewModel.StreamingEngine;
+                    _model.NextEngineTextSubtitleMode = channelViewModel.NextEngineTextSubtitleMode;
+                    _model.StreamingMode = channelViewModel.StreamingMode;
+                    _model.StreamSelectorMode = channelViewModel.StreamSelectorMode;
+                    _model.StreamSelector = channelViewModel.StreamSelector;
+                    _model.PreferredAudioLanguageCode = channelViewModel.PreferredAudioLanguageCode;
+                    _model.PreferredAudioTitle = channelViewModel.PreferredAudioTitle;
+                    _model.WatermarkId = channelViewModel.WatermarkId;
+                    _model.GraphicsElements = _graphicsElements
+                        .Where(ge => channelViewModel.GraphicsElementIds.Contains(ge.Id))
+                        .ToList();
+                    _model.FallbackFillerId = channelViewModel.FallbackFillerId;
+                    _model.PreferredSubtitleLanguageCode = channelViewModel.PreferredSubtitleLanguageCode;
+                    _model.SubtitleMode = channelViewModel.SubtitleMode;
+                    _model.MusicVideoCreditsMode = channelViewModel.MusicVideoCreditsMode;
+                    _model.MusicVideoCreditsTemplate = channelViewModel.MusicVideoCreditsTemplate;
+                    _model.SongVideoMode = channelViewModel.SongVideoMode;
+                    _model.TranscodeMode = channelViewModel.TranscodeMode;
+                    _model.IdleBehavior = channelViewModel.IdleBehavior;
+                    _model.IsEnabled = channelViewModel.IsEnabled;
+                    _model.ShowInEpg = channelViewModel.ShowInEpg;
+                },
+                () => NavigationManager.NavigateTo("404"));
         }
         catch (OperationCanceledException)
         {
@@ -505,8 +502,6 @@ else
     {
         assign(await fetch());
     }
-
-    private bool IsEdit => Id.HasValue;
 
     private async Task HandleSubmitAsync()
     {
@@ -523,9 +518,7 @@ else
             ValidationResult result = await _validator.ValidateAsync(_model, token);
             if (result.IsValid)
             {
-                Seq<BaseError> errorMessage = IsEdit
-                    ? (await Mediator.Send(_model.ToUpdate(), token)).LeftToSeq()
-                    : (await Mediator.Send(_model.ToCreate(), token)).LeftToSeq();
+                Seq<BaseError> errorMessage = (await Mediator.Send(_model.ToUpdate(), token)).LeftToSeq();
 
                 errorMessage.HeadOrNone().Match(
                     error =>

@@ -3,6 +3,7 @@
 @using ErsatzTV.Application.Channels
 @using ErsatzTV.Application.Configuration
 @using ErsatzTV.Application.FFmpegProfiles
+@using ErsatzTV.Core
 @using ErsatzTV.Core.Interfaces.FFmpeg
 @implements IDisposable
 @inject IDialogService Dialog
@@ -15,34 +16,37 @@
 @inject IStringLocalizer<ErsatzTV.Locals.Shared.MainLayout> MainLayoutLoc;
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" StartIcon="@Icons.Material.Filled.Add" Href="channels/add">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="channels/add">
             @Loc["ButtonAddChannel"]
         </MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Secondary" Class="ml-3" StartIcon="@Icons.Material.Filled.Edit" Href="channels/numbers">
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Edit" Href="channels/numbers">
             @Loc["ButtonEditChannelNumbers"]
         </MudButton>
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">@MainLayoutLoc["ButtonChannels"]</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="@(MainLayoutLoc["ButtonChannels"])"/>
+            <PageSurface>
             <MudTable Hover="true"
+                      Elevation="0"
                       @bind-RowsPerPage="@_rowsPerPage"
                       ServerData="@(new Func<TableState, CancellationToken, Task<TableData<ChannelViewModel>>>(ServerReload))"
                       @ref="_table"
                       RowClassFunc="ChannelRowClassFunc">
                 <ToolBarContent>
                     <MudSwitch T="bool" Class="ml-6" @bind-Value="@ShowDisabled" Color="Color.Secondary" Label="@Loc["ButtonShowDisabled"]"/>
+                    <MudSwitch T="bool" Class="ml-6" @bind-Value="@ShowPreviews" Color="Color.Primary" Label="Live previews (10 fps)"/>
                 </ToolBarContent>
                 <ColGroup>
                     <MudHidden Breakpoint="Breakpoint.Xs">
                         <col style="width: 60px;"/>
                         <col/>
-                        <col style="width: 15%"/>
-                        <col style="width: 15%"/>
-                        <col style="width: 15%"/>
-                        <col style="width: 15%"/>
+                        <col/>
+                        <col style="width: 120px;"/>
+                        <col style="width: 200px;"/>
+                        <col style="width: 12%"/>
+                        <col style="width: 12%"/>
                         <col style="width: 300px;"/>
                     </MudHidden>
                 </ColGroup>
@@ -50,11 +54,12 @@
                     <MudTh>
                         <MudTableSortLabel InitialDirection="SortDirection.Ascending" SortBy="new Func<ChannelViewModel, object>(x => decimal.Parse(x.Number, CultureInfo.InvariantCulture))">@Loc["LabelNumber"]</MudTableSortLabel>
                     </MudTh>
-                    <MudTh>@Loc["LabelLogo"]</MudTh>
+                    <MudTh>@Loc["LabelLogo"] / Preview</MudTh>
                     <MudTh>
                         <MudTableSortLabel SortBy="new Func<ChannelViewModel, object>(x => x.Name)">@Loc["LabelName"]</MudTableSortLabel>
                     </MudTh>
-                    <MudTh>@Loc["LabelLanguage"]</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Controls</MudTh>
                     <MudTh>@Loc["LabelStreamingMode"]</MudTh>
                     <MudTh>@Loc["LabelFFmpegProfile"]</MudTh>
                     <MudTh/>
@@ -79,7 +84,19 @@
                         }
                     </MudTd>
                     <MudTd DataLabel="@Loc["LabelLogo"]">
-                        @if (!string.IsNullOrWhiteSpace(context.Logo?.Path))
+                        @if (_showPreviews && context.IsEnabled && context.PlayoutCount > 0 && !_failedPreviewChannels.Contains(context.Number))
+                        {
+                            <div class="channel-preview-cell" style="position: relative; display: inline-block; width: 160px; height: 90px;">
+                                <img src="@GetChannelPreviewUrl(context.Number)"
+                                     alt="@($"{context.Name} preview")"
+                                     style="width: 160px; height: 90px; object-fit: cover; background: #111; display: block; border-radius: 4px;"
+                                     @onerror="@(_ => OnPreviewError(context.Number))"/>
+                                <img src="@(string.IsNullOrWhiteSpace(context.Logo?.Path) ? $"iptv/logos/gen?text={context.WebEncodedName}" : context.Logo.UrlWithContentType)"
+                                     alt=""
+                                     style="max-height: 28px; max-width: 48px; position: absolute; left: 6px; bottom: 6px; background: rgba(0,0,0,0.55); border-radius: 2px; padding: 2px;"/>
+                            </div>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(context.Logo?.Path))
                         {
                             <MudElement HtmlTag="img" src="@context.Logo.UrlWithContentType" Style="max-height: 50px"/>
                         }
@@ -88,8 +105,93 @@
                             <MudElement HtmlTag="img" src="@($"iptv/logos/gen?text={context.WebEncodedName}")" Style="max-height: 50px"/>
                         }
                     </MudTd>
-                    <MudTd DataLabel="@Loc["LabelName"]">@context.Name</MudTd>
-                    <MudTd DataLabel="@Loc["LabelLanguage"]">@context.PreferredAudioLanguageCode</MudTd>
+                    <MudTd DataLabel="@Loc["LabelName"]">
+                        <div class="d-flex flex-column gap-2">
+                            <div class="d-flex align-center">
+                                <MudText Typo="Typo.body1">@context.Name</MudText>
+                                @if (IsSeedNeedingSetup(context))
+                                {
+                                    <MudButton Variant="Variant.Text"
+                                               Color="Color.Info"
+                                               Size="Size.Small"
+                                               Class="ml-2"
+                                               Href="@($"channels/{context.Id}")">
+                                        Set up channel
+                                    </MudButton>
+                                }
+                            </div>
+                            @if (_nowPlaying.TryGetValue(context.Id, out ChannelNowPlayingViewModel nowPlaying))
+                            {
+                                <div class="d-flex align-center gap-2" style="min-width: 0;">
+                                    @if (!string.IsNullOrWhiteSpace(nowPlaying.ThumbnailUrl))
+                                    {
+                                        <img src="@nowPlaying.ThumbnailUrl"
+                                             alt=""
+                                             style="width: 64px; height: 36px; object-fit: cover; border-radius: 4px; background: #111; flex-shrink: 0;"/>
+                                    }
+                                    <div class="d-flex flex-column" style="min-width: 0;">
+                                        <MudText Typo="Typo.caption"
+                                                 Style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px;"
+                                                 title="@nowPlaying.Title">
+                                            @nowPlaying.Title
+                                        </MudText>
+                                        <MudText Typo="Typo.caption" Style="opacity: 0.75; font-variant-numeric: tabular-nums;">
+                                            @FormatNowPlayingTime(nowPlaying)
+                                        </MudText>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </MudTd>
+                    <MudTd DataLabel="Status">
+                        @if (context.IsEnabled && context.PlayoutCount > 0)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Live</MudChip>
+                        }
+                        else if (context.IsEnabled)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Setup needed</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Disabled</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Controls">
+                        @{
+                            bool hasNowPlaying = _nowPlaying.TryGetValue(context.Id, out ChannelNowPlayingViewModel controlsNowPlaying);
+                            bool canControl = context.IsEnabled && context.PlayoutCount > 0 && hasNowPlaying;
+                            double scrubMax = canControl ? Math.Max(0.1, GetNowPlayingDuration(controlsNowPlaying).TotalSeconds) : 1;
+                            double scrubValue = canControl ? GetNowPlayingElapsed(controlsNowPlaying).TotalSeconds : 0;
+                            bool isPaused = canControl && controlsNowPlaying.IsPaused;
+                        }
+                        <div class="d-flex flex-column" style="min-width: 160px;">
+                            <div class="d-flex align-center justify-center">
+                                <MudIconButton Icon="@Icons.Material.Filled.SkipPrevious"
+                                               Disabled="@(!canControl)"
+                                               Size="Size.Small"
+                                               OnClick="@(_ => SkipPlaybackAsync(context, ChannelPlaybackSkipDirection.Previous))"/>
+                                <MudIconButton Icon="@(isPaused ? Icons.Material.Filled.PlayArrow : Icons.Material.Filled.Pause)"
+                                               Disabled="@(!(context.IsEnabled && context.PlayoutCount > 0))"
+                                               Size="Size.Small"
+                                               OnClick="@(_ => TogglePauseAsync(context, isPaused))"/>
+                                <MudIconButton Icon="@Icons.Material.Filled.SkipNext"
+                                               Disabled="@(!canControl)"
+                                               Size="Size.Small"
+                                               OnClick="@(_ => SkipPlaybackAsync(context, ChannelPlaybackSkipDirection.Next))"/>
+                            </div>
+                            <MudSlider T="double"
+                                       Min="0"
+                                       Max="@scrubMax"
+                                       Step="0.5"
+                                       Value="@scrubValue"
+                                       ValueChanged="@(v => SeekPlaybackAsync(context, v))"
+                                       Disabled="@(!canControl)"
+                                       Immediate="false"
+                                       Class="mt-n2"
+                                       Style="margin-left: 4px; margin-right: 4px;"/>
+                        </div>
+                    </MudTd>
                     <MudTd DataLabel="@Loc["LabelStreamingMode"]">@GetStreamingMode(context.StreamingMode)</MudTd>
                     <MudTd DataLabel="@Loc["LabelFFmpegProfile"]">
                         @if (context.StreamingMode != StreamingMode.HttpLiveStreamingDirect)
@@ -179,6 +281,7 @@
                     <MudTablePager RowsPerPageString="@CommonLoc["LabelRowsPerPage"]" />
                 </PagerContent>
             </MudTable>
+            </PageSurface>
         </MudContainer>
     </div>
 </MudForm>
@@ -190,8 +293,14 @@
     private List<FFmpegProfileViewModel> _ffmpegProfiles = [];
     private readonly System.Collections.Generic.HashSet<int> _channelsThatCanPreview = [];
     private readonly Dictionary<int, bool> _ffmpegProfilesThatCanPreview = [];
+    private readonly Dictionary<int, ChannelNowPlayingViewModel> _nowPlaying = [];
+    private System.Threading.Timer _nowPlayingClock;
+    private System.Threading.Timer _nowPlayingRefresh;
     private bool _showDisabled;
+    private bool _showPreviews = true;
+    private readonly System.Collections.Generic.HashSet<string> _failedPreviewChannels = [];
     private int _rowsPerPage = 10;
+    private List<int> _visibleChannelIds = [];
 
     private bool ShowDisabled
     {
@@ -206,7 +315,34 @@
         }
     }
 
-    protected override void OnInitialized() => SegmenterService.OnWorkersChanged += WorkersChanged;
+    private bool ShowPreviews
+    {
+        get => _showPreviews;
+        set
+        {
+            if (_showPreviews != value)
+            {
+                _showPreviews = value;
+                // re-render so preview <img> nodes mount/unmount; avoid restarting all streams on page reload
+                StateHasChanged();
+            }
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        SegmenterService.OnWorkersChanged += WorkersChanged;
+        _nowPlayingClock = new System.Threading.Timer(
+            _ => _ = InvokeAsync(StateHasChanged),
+            null,
+            TimeSpan.FromSeconds(1),
+            TimeSpan.FromSeconds(1));
+        _nowPlayingRefresh = new System.Threading.Timer(
+            _ => _ = InvokeAsync(RefreshNowPlayingAsync),
+            null,
+            TimeSpan.FromSeconds(15),
+            TimeSpan.FromSeconds(15));
+    }
 
     private void WorkersChanged(object sender, EventArgs e) =>
         InvokeAsync(StateHasChanged);
@@ -214,6 +350,8 @@
     public void Dispose()
     {
         SegmenterService.OnWorkersChanged -= WorkersChanged;
+        _nowPlayingClock?.Dispose();
+        _nowPlayingRefresh?.Dispose();
 
         _cts?.Cancel();
         _cts?.Dispose();
@@ -325,7 +463,11 @@
             uri.Query += $"&access_token={JwtHelper.GenerateToken()}";
         }
 
-        var parameters = new DialogParameters { { "StreamUri", uri.ToString() } };
+        var parameters = new DialogParameters
+        {
+            { "StreamUri", uri.ToString() },
+            { "RawPreviewUri", GetChannelPreviewUrl(channel.Number, fps: 60) }
+        };
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraLarge };
         await Dialog.ShowAsync<ChannelPreviewDialog>("Channel Preview", parameters, options);
     }
@@ -389,11 +531,141 @@
             }
         }
 
+        _visibleChannelIds = processedChannels.Select(c => c.Id).ToList();
+        await LoadNowPlayingAsync(_visibleChannelIds, cancellationToken);
+
         return new TableData<ChannelViewModel>
         {
             TotalItems = channels.Count,
             Items = processedChannels
         };
+    }
+
+    private async Task RefreshNowPlayingAsync()
+    {
+        if (_visibleChannelIds.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await LoadNowPlayingAsync(_visibleChannelIds, cts.Token);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+            // ignore
+        }
+    }
+
+    private async Task LoadNowPlayingAsync(IReadOnlyList<int> channelIds, CancellationToken cancellationToken)
+    {
+        Dictionary<int, ChannelNowPlayingViewModel> next =
+            await Mediator.Send(new GetChannelsNowPlaying(channelIds), cancellationToken);
+        _nowPlaying.Clear();
+        foreach ((int id, ChannelNowPlayingViewModel info) in next)
+        {
+            _nowPlaying[id] = info;
+        }
+    }
+
+    private static string FormatNowPlayingTime(ChannelNowPlayingViewModel nowPlaying)
+    {
+        TimeSpan duration = GetNowPlayingDuration(nowPlaying);
+        TimeSpan elapsed = GetNowPlayingElapsed(nowPlaying);
+        return $"{FormatClock(elapsed)}/{FormatClock(duration)}";
+    }
+
+    private static TimeSpan GetNowPlayingDuration(ChannelNowPlayingViewModel nowPlaying)
+    {
+        TimeSpan duration = nowPlaying.Finish - nowPlaying.Start;
+        return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
+    }
+
+    private static TimeSpan GetNowPlayingElapsed(ChannelNowPlayingViewModel nowPlaying)
+    {
+        DateTimeOffset effective = nowPlaying.IsPaused
+            ? nowPlaying.EffectiveNow
+            : DateTimeOffset.Now - nowPlaying.ClockSkew;
+
+        TimeSpan duration = GetNowPlayingDuration(nowPlaying);
+        TimeSpan elapsed = effective - nowPlaying.Start;
+        if (elapsed < TimeSpan.Zero)
+        {
+            elapsed = TimeSpan.Zero;
+        }
+
+        if (elapsed > duration)
+        {
+            elapsed = duration;
+        }
+
+        return elapsed;
+    }
+
+    private async Task TogglePauseAsync(ChannelViewModel channel, bool isPaused)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        if (isPaused)
+        {
+            await Mediator.Send(new ResumeChannelPlayback(channel.Id), cts.Token);
+        }
+        else
+        {
+            await Mediator.Send(new PauseChannelPlayback(channel.Id), cts.Token);
+        }
+
+        await RefreshNowPlayingForChannelAsync(channel.Id, cts.Token);
+    }
+
+    private async Task SkipPlaybackAsync(ChannelViewModel channel, ChannelPlaybackSkipDirection direction)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await Mediator.Send(new SkipChannelPlayback(channel.Id, direction), cts.Token);
+        await RefreshNowPlayingForChannelAsync(channel.Id, cts.Token);
+    }
+
+    private async Task SeekPlaybackAsync(ChannelViewModel channel, double seconds)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await Mediator.Send(
+            new SeekChannelPlayback(channel.Id, TimeSpan.FromSeconds(Math.Max(0, seconds))),
+            cts.Token);
+        await RefreshNowPlayingForChannelAsync(channel.Id, cts.Token);
+    }
+
+    private async Task RefreshNowPlayingForChannelAsync(int channelId, CancellationToken cancellationToken)
+    {
+        Dictionary<int, ChannelNowPlayingViewModel> next =
+            await Mediator.Send(new GetChannelsNowPlaying([channelId]), cancellationToken);
+        if (next.TryGetValue(channelId, out ChannelNowPlayingViewModel info))
+        {
+            _nowPlaying[channelId] = info;
+        }
+        else
+        {
+            _nowPlaying.Remove(channelId);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static string FormatClock(TimeSpan value)
+    {
+        if (value.TotalHours >= 1)
+        {
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                @"{0:h\:mm\:ss}",
+                value);
+        }
+
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            @"{0:mm\:ss}",
+            value);
     }
 
     private static string GetStreamingMode(StreamingMode streamingMode) => streamingMode switch
@@ -412,6 +684,33 @@
     private string ChannelRowClassFunc(ChannelViewModel channel, int index)
     {
         return channel.IsEnabled && channel.ShowInEpg ? string.Empty : "channel-disabled";
+    }
+
+    private static bool IsSeedNeedingSetup(ChannelViewModel channel) =>
+        channel.Number == "1" &&
+        string.Equals(channel.Name, "ErsatzTV", StringComparison.OrdinalIgnoreCase) &&
+        channel.PlayoutCount < 1;
+
+    private void OnPreviewError(string channelNumber)
+    {
+        if (_failedPreviewChannels.Add(channelNumber))
+        {
+            StateHasChanged();
+        }
+    }
+
+    private string GetChannelPreviewUrl(string channelNumber, int? fps = null)
+    {
+        string path = fps is > 0
+            ? $"ffmpeg/preview/{channelNumber}?fps={fps.Value}"
+            : $"ffmpeg/preview/{channelNumber}";
+        Uri uri = NavigationManager.ToAbsoluteUri(path);
+        if (Core.Settings.UiPort != Core.Settings.StreamingPort)
+        {
+            uri = new UriBuilder(uri) { Port = Core.Settings.UiPort }.Uri;
+        }
+
+        return uri.ToString();
     }
 
 }

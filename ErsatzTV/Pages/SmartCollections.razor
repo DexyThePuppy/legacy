@@ -1,4 +1,4 @@
-﻿@page "/media/smart-collections"
+@page "/media/smart-collections"
 @using ErsatzTV.Application.Configuration
 @using ErsatzTV.Application.MediaCollections
 @using ErsatzTV.Extensions
@@ -9,8 +9,7 @@
 <MudForm Style="max-height: 100%">
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Smart Collections</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Smart Collections"/>
             <MudTable Hover="true"
                       @bind-RowsPerPage="@_smartCollectionsRowsPerPage"
                       ServerData="@(new Func<TableState, CancellationToken, Task<TableData<SmartCollectionViewModel>>>(ServerReloadSmartCollections))"
@@ -43,6 +42,11 @@
                             <MudTooltip Text="Search Smart Collection">
                                 <MudIconButton Icon="@Icons.Material.Filled.Search"
                                                Href="@context.Query.GetRelativeSearchQuery()">
+                                </MudIconButton>
+                            </MudTooltip>
+                            <MudTooltip Text="Create Channel from this">
+                                <MudIconButton Icon="@Icons.Material.Filled.Tv"
+                                               Href="@($"channels/add?smartCollectionId={context.Id}&name={Uri.EscapeDataString(context.Name)}")">
                                 </MudIconButton>
                             </MudTooltip>
                             <MudTooltip Text="Delete Smart Collection">

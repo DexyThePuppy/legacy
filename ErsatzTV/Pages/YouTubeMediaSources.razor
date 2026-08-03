@@ -11,7 +11,7 @@
 @inject ChannelWriter<IYtDlpWorkerRequest> YtDlpWorkerChannel
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
         <MudButton Class="ml-8"
                    StartIcon="@Icons.Material.Filled.AddToQueue"
                    Variant="Variant.Filled"
@@ -22,8 +22,7 @@
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">YouTube</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="YouTube"/>
             @if (_imports.Count == 0)
             {
                 <MudText Class="mb-6">
@@ -93,6 +92,22 @@
                                                    Href="@($"search?query={Uri.EscapeDataString($"type:remote_stream AND tag:\"youtube-{context.Slug}\"")}")">
                                     </MudIconButton>
                                 </MudTooltip>
+                                @if (context.ChannelId is not null)
+                                {
+                                    <MudTooltip Text="Open Channel">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Tv"
+                                                       Href="@($"channels/{context.ChannelId.Value}")">
+                                        </MudIconButton>
+                                    </MudTooltip>
+                                }
+                                else
+                                {
+                                    <MudTooltip Text="Create Channel from this">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Add"
+                                                       Href="@($"channels/add?youtubeSlug={Uri.EscapeDataString(context.Slug)}&name={Uri.EscapeDataString(context.Name)}")">
+                                        </MudIconButton>
+                                    </MudTooltip>
+                                }
                                 <MudTooltip Text="Delete Import">
                                     <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                                    OnClick="@(_ => DeleteImport(context))">
@@ -145,8 +160,7 @@
                 </MudPaper>
             }
 
-            <MudText Typo="Typo.h5" Class="mb-2">yt-dlp Settings</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="yt-dlp Settings"/>
             <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                 <div class="d-flex">
                     <MudText>yt-dlp Path</MudText>
@@ -169,7 +183,7 @@
                 <div class="d-flex">
                     <MudText>Extra Arguments</MudText>
                 </div>
-                <MudTextField @bind-Value="_extraArgs" HelperText="Optional extra yt-dlp arguments for downloads (e.g. --cookies-from-browser firefox)"/>
+                <MudTextField @bind-Value="_extraArgs" HelperText="Optional yt-dlp args for downloads and live streaming. Age-restricted videos need cookies, e.g. --cookies C:\path\cookies.txt (Chrome --cookies-from-browser often fails on Windows)"/>
             </MudStack>
             <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                 <div class="d-flex">
@@ -279,14 +293,23 @@
 
     private async Task DeleteImport(YouTubeImportManifest manifest)
     {
-        var parameters = new DialogParameters { { "EntityType", "YouTube Import" }, { "EntityName", manifest.Name } };
-        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
-
-        IDialogReference dialog = await Dialog.ShowAsync<DeleteDialog>("Delete YouTube Import", parameters, options);
-        DialogResult result = await dialog.Result;
-        if (result is { Canceled: false })
+        var parameters = new DialogParameters
         {
-            Either<BaseError, Unit> deleteResult = await Mediator.Send(new DeleteYouTubeImport(manifest.Slug), _cts.Token);
+            { "EntityName", manifest.Name },
+            { "HasLinkedStation", manifest.ChannelId is not null }
+        };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+
+        IDialogReference dialog = await Dialog.ShowAsync<DeleteYouTubeImportDialog>(
+            "Delete YouTube Import",
+            parameters,
+            options);
+        DialogResult result = await dialog.Result;
+        if (result is { Canceled: false, Data: bool deleteLinkedStation })
+        {
+            Either<BaseError, Unit> deleteResult = await Mediator.Send(
+                new DeleteYouTubeImport(manifest.Slug, deleteLinkedStation),
+                _cts.Token);
             deleteResult.Match(
                 _ => Snackbar.Add($"Deleted {manifest.Name}", Severity.Success),
                 error => Snackbar.Add($"Unable to delete import: {error.Value}", Severity.Error));

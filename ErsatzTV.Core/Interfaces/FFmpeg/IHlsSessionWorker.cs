@@ -5,6 +5,9 @@ namespace ErsatzTV.Core.Interfaces.FFmpeg;
 public interface IHlsSessionWorker : IDisposable
 {
     Task Cancel(CancellationToken cancellationToken);
+    void PausePlayback();
+    void ResumePlayback();
+    bool IsPlaybackPaused { get; }
     void Touch(Option<string> fileName);
     Task<Option<TrimPlaylistResult>> TrimPlaylist(DateTimeOffset filterBefore, CancellationToken cancellationToken);
     void PlayoutUpdated();

@@ -160,7 +160,7 @@ public class YtDlpService(
         startInfo.ArgumentList.Add("-o");
         startInfo.ArgumentList.Add(Path.Combine(FileSystemLayout.YouTubeCacheFolder, "%(id)s.%(ext)s"));
 
-        foreach (string arg in SplitArgs(settings.ExtraArgs))
+        foreach (string arg in YtDlpSettings.SplitExtraArgs(settings.ExtraArgs))
         {
             startInfo.ArgumentList.Add(arg);
         }
@@ -472,16 +472,4 @@ public class YtDlpService(
         return input;
     }
 
-    private static IEnumerable<string> SplitArgs(string args)
-    {
-        if (string.IsNullOrWhiteSpace(args))
-        {
-            yield break;
-        }
-
-        foreach (string arg in args.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            yield return arg;
-        }
-    }
 }

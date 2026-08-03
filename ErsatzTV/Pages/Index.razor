@@ -1,4 +1,3 @@
-@page "/"
 @page "/system/health"
 @using ErsatzTV.Application.Health
 @using ErsatzTV.Core.Health
@@ -16,7 +15,7 @@
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
             @if (!SystemStartup.IsDatabaseReady)
             {
-                <MudCard>
+                <MudCard Elevation="1">
                     <MudCardHeader>
                         <CardHeaderContent>
                             <MudText Typo="Typo.h4">Database is initializing</MudText>
@@ -33,7 +32,7 @@
             }
             else if (!SystemStartup.IsSearchIndexReady)
             {
-                <MudCard>
+                <MudCard Elevation="1">
                     <MudCardHeader>
                         <CardHeaderContent>
                             <MudText Typo="Typo.h4">Search Index is initializing</MudText>
@@ -50,9 +49,10 @@
             }
             else
             {
-                <MudText Typo="Typo.h5" Class="mb-2">Health Checks</MudText>
-                <MudDivider Class="mb-6"/>
+                <PageHeader Title="Health Checks"/>
+                <PageSurface>
                 <MudTable Hover="true"
+                          Elevation="0"
                           Dense="true"
                           Breakpoint="Breakpoint.None"
                           ServerData="@(ServerReload)">
@@ -129,7 +129,8 @@
                         </MudTd>
                     </RowTemplate>
                 </MudTable>
-                <MudCard Class="mt-6">
+                </PageSurface>
+                <MudCard Class="mt-6" Elevation="1">
                     <MudCardHeader>
                         <MudText Class="mt-6">Full changelog is available on <MudLink Href="https://github.com/ErsatzTV/legacy/blob/main/CHANGELOG.md" Target="_blank">GitHub</MudLink></MudText>
                     </MudCardHeader>

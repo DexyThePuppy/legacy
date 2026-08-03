@@ -14,7 +14,7 @@
 @inject ICourier Courier;
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
         <div style="display: flex; flex-direction: row; margin-bottom: auto; margin-top: auto; width: 100%; align-items: center" class="ml-6 mr-6">
             <div class="flex-grow-1"></div>
             <div style="margin-left: auto" class="d-none d-md-flex">
@@ -49,9 +49,10 @@
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Playouts</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Playouts"/>
+            <PageSurface>
             <MudTable Hover="true"
+                      Elevation="0"
                       Dense="true"
                       SelectedItemChanged="@(async (PlayoutNameViewModel x) => await PlayoutSelected(x))"
                       @bind-RowsPerPage="@_rowsPerPage"
@@ -220,10 +221,10 @@
                     <MudTablePager/>
                 </PagerContent>
             </MudTable>
+            </PageSurface>
             @if (_selectedPlayoutId != null)
             {
-                <MudText Typo="Typo.h5" Class="mt-10 mb-2">Playout Detail</MudText>
-                <MudDivider Class="mb-6"/>
+                <PageHeader Title="Playout Detail" Class="mt-10"/>
                 @if (!string.IsNullOrWhiteSpace(_buildMessage))
                 {
                     <MudAlert Severity="Severity.Warning">@_buildMessage</MudAlert>

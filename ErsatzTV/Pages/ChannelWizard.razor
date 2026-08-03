@@ -1,0 +1,429 @@
+@page "/channels/add"
+@using System.Globalization
+@using ErsatzTV.Application.Artworks
+@using ErsatzTV.Application.Channels
+@using ErsatzTV.Application.FFmpegProfiles
+@using ErsatzTV.Application.MediaCollections
+@using ErsatzTV.Core.Domain
+@implements IDisposable
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IJSRuntime JsRuntime
+@inject NavigationManager NavigationManager
+@inject IDialogService Dialog
+
+<MudForm Style="max-height: 100%">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
+        @if (_step > 0 && _step < 3)
+        {
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@PreviousStep">
+                Back
+            </MudButton>
+        }
+        @if (_step < 3)
+        {
+            <MudButton Class="ml-2"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       EndIcon="@(_step == 2 ? Icons.Material.Filled.Check : Icons.Material.Filled.ArrowForward)"
+                       Disabled="@(_busy || !CanAdvance())"
+                       OnClick="@NextOrCreate">
+                @(_step == 2 ? "Create Channel" : "Next")
+            </MudButton>
+        }
+        else if (_result is not null)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@($"channels/{_result.ChannelId}")">
+                Open Channel Settings
+            </MudButton>
+        }
+    </MudPaper>
+    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
+        <MudContainer MaxWidth="MaxWidth.Medium" Class="pt-8 pb-16">
+            <PageHeader Title="Create Channel"
+                        Subtitle="@StepSubtitle()"/>
+
+            <MudStack Row="true" Spacing="2" Class="mb-6">
+                @for (var i = 0; i < 4; i++)
+                {
+                    var index = i;
+                    <MudChip T="string"
+                             Size="Size.Small"
+                             Color="@(index == _step ? Color.Primary : index < _step ? Color.Success : Color.Default)"
+                             Variant="@(index == _step ? Variant.Filled : Variant.Outlined)">
+                        @(index switch
+                        {
+                            0 => "1 Identity",
+                            1 => "2 Content",
+                            2 => "3 Play",
+                            _ => "4 Ready"
+                        })
+                    </MudChip>
+                }
+            </MudStack>
+
+            @if (_busy)
+            {
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small"/>
+                    <MudText>Creating channel station...</MudText>
+                </MudStack>
+            }
+
+            @if (_step == 0)
+            {
+                <FormSection Title="Essentials">
+                    <MudTextField @bind-Value="_name" Label="Name" Class="mb-4" Immediate="true"/>
+                    <MudTextField @bind-Value="_number" Label="Number" Class="mb-4" Immediate="true"
+                                  HelperText="Leave blank to assign the next available number"/>
+                    <MudTextField @bind-Value="_logoUrl" Label="Logo URL (optional)" Class="mb-2"/>
+                </FormSection>
+                <MudExpansionPanels Class="mt-4" Elevation="0">
+                    <MudExpansionPanel Text="More options" Dense="true">
+                        <MudTextField @bind-Value="_group" Label="Group" Class="mb-4"/>
+                        <MudTextField @bind-Value="_categories" Label="Categories" HelperText="Comma-separated" Class="mb-4"/>
+                        <MudSelect T="int" @bind-Value="_ffmpegProfileId" Label="FFmpeg Profile" Class="mb-2">
+                            @foreach (FFmpegProfileViewModel profile in _ffmpegProfiles)
+                            {
+                                <MudSelectItem T="int" Value="@profile.Id">@profile.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudExpansionPanel>
+                    <MudExpansionPanel Text="Expert" Dense="true">
+                        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+                            Mirror channels are created from an existing generated channel in Channel Settings.
+                            Create Channel always builds a Generated station with a playout.
+                        </MudAlert>
+                        <MudSelect T="ChannelPlayoutMode" @bind-Value="_playoutMode" Label="Playout Mode">
+                            <MudSelectItem Value="ChannelPlayoutMode.Continuous">Continuous</MudSelectItem>
+                            <MudSelectItem Value="ChannelPlayoutMode.OnDemand">On Demand</MudSelectItem>
+                        </MudSelect>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+            else if (_step == 1)
+            {
+                <FormSection Title="Content">
+                    <MudSelect T="ChannelStationContentKind" @bind-Value="_contentKind" Label="Content source" Class="mb-4">
+                        <MudSelectItem Value="ChannelStationContentKind.SmartCollectionQuery">Search query (smart collection)</MudSelectItem>
+                        <MudSelectItem Value="ChannelStationContentKind.ExistingSmartCollection">Existing smart collection</MudSelectItem>
+                        <MudSelectItem Value="ChannelStationContentKind.YouTubeSlug">YouTube import slug</MudSelectItem>
+                    </MudSelect>
+
+                    @if (_contentKind is ChannelStationContentKind.SmartCollectionQuery)
+                    {
+                        <MudTextField @bind-Value="_searchQuery"
+                                      Label="Search query"
+                                      HelperText="Same syntax as Search — becomes a smart collection"
+                                      Immediate="true"
+                                      Class="mb-2"/>
+                    }
+                    else if (_contentKind is ChannelStationContentKind.ExistingSmartCollection)
+                    {
+                        <MudSelect T="int?" @bind-Value="_smartCollectionId" Label="Smart collection" Class="mb-2">
+                            <MudSelectItem T="int?" Value="@((int?)null)">(select)</MudSelectItem>
+                            @foreach (SmartCollectionViewModel collection in _smartCollections)
+                            {
+                                <MudSelectItem T="int?" Value="@collection.Id">@collection.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
+                    else
+                    {
+                        <MudTextField @bind-Value="_youtubeSlug"
+                                      Label="YouTube import slug"
+                                      HelperText="Matches tag youtube-{slug} from an import"
+                                      Immediate="true"
+                                      Class="mb-2"/>
+                    }
+                </FormSection>
+            }
+            else if (_step == 2)
+            {
+                <FormSection Title="Play">
+                    <MudSelect T="PlaybackOrder" @bind-Value="_playbackOrder" Label="Order" Class="mb-4">
+                        <MudSelectItem Value="PlaybackOrder.Chronological">Chronological</MudSelectItem>
+                        <MudSelectItem Value="PlaybackOrder.Shuffle">Shuffle</MudSelectItem>
+                    </MudSelect>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                        Creates a classic flood schedule bound to your content, then a playout so the channel is watchable.
+                    </MudText>
+                </FormSection>
+                <MudExpansionPanels Class="mt-4" Elevation="0">
+                    <MudExpansionPanel Text="Expert" Dense="true">
+                        <MudAlert Severity="Severity.Info" Dense="true">
+                            Block, YAML, Script, and External JSON schedules can be attached later from Advanced → Scheduling.
+                            This wizard creates a Classic flood station.
+                        </MudAlert>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+            else if (_result is not null)
+            {
+                <FormSection Title="Ready">
+                    <MudAlert Severity="Severity.Success" Class="mb-4" Dense="true">
+                        Channel "@_name" is set up. Indexing may still be in progress — preview once media is available.
+                    </MudAlert>
+
+                    @if (_summary is not null && _summary.LastBuildSuccess == false)
+                    {
+                        <MudAlert Severity="Severity.Warning" Class="mb-4" Dense="true">
+                            Playout build issue: @(_summary.LastBuildMessage ?? "Unknown error")
+                        </MudAlert>
+                    }
+                    else if (_summary is not null && !_summary.IsLive)
+                    {
+                        <MudAlert Severity="Severity.Info" Class="mb-4" Dense="true">
+                            Channel is enabled but not live yet (waiting for playout content or indexing).
+                        </MudAlert>
+                    }
+
+                    <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.PlayCircle"
+                                   Disabled="@(_summary is null || !_summary.IsLive)"
+                                   OnClick="@PreviewCreatedChannel">
+                            Preview
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Info"
+                                   StartIcon="@Icons.Material.Filled.ContentCopy"
+                                   OnClick="@CopyM3U">
+                            Copy M3U
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined"
+                                   Href="@($"schedules/{_result.ScheduleId}/items")"
+                                   StartIcon="@Icons.Material.Filled.EventNote">
+                            Edit what's on
+                        </MudButton>
+                        <MudButton Variant="Variant.Text"
+                                   Href="@($"channels/{_result.ChannelId}")"
+                                   StartIcon="@Icons.Material.Filled.Settings">
+                            Channel settings
+                        </MudButton>
+                    </MudStack>
+                </FormSection>
+            }
+        </MudContainer>
+    </div>
+</MudForm>
+
+@code {
+    private CancellationTokenSource _cts;
+    private int _step;
+    private bool _busy;
+
+    private string _name = "New Channel";
+    private string _number;
+    private string _group = "ErsatzTV";
+    private string _categories;
+    private string _logoUrl;
+    private int _ffmpegProfileId;
+    private ChannelPlayoutMode _playoutMode = ChannelPlayoutMode.Continuous;
+
+    private ChannelStationContentKind _contentKind = ChannelStationContentKind.SmartCollectionQuery;
+    private string _searchQuery;
+    private int? _smartCollectionId;
+    private string _youtubeSlug;
+    private PlaybackOrder _playbackOrder = PlaybackOrder.Chronological;
+
+    private List<FFmpegProfileViewModel> _ffmpegProfiles = [];
+    private List<SmartCollectionViewModel> _smartCollections = [];
+    private CreateChannelStationResult _result;
+    private ChannelHubSummaryViewModel _summary;
+    private string _createdNumber;
+
+    [SupplyParameterFromQuery(Name = "query")]
+    public string Query { get; set; }
+
+    [SupplyParameterFromQuery(Name = "smartCollectionId")]
+    public int? SmartCollectionId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "youtubeSlug")]
+    public string YouTubeSlug { get; set; }
+
+    [SupplyParameterFromQuery(Name = "name")]
+    public string PrefillName { get; set; }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        CancellationToken token = _cts.Token;
+
+        try
+        {
+            FFmpegSettingsViewModel ffmpegSettings = await Mediator.Send(new GetFFmpegSettings(), token);
+            _ffmpegProfiles = await Mediator.Send(new GetAllFFmpegProfiles(), token);
+            _smartCollections = await Mediator.Send(new GetAllSmartCollections(), token);
+            _ffmpegProfileId = ffmpegSettings.DefaultFFmpegProfileId;
+
+            if (_ffmpegProfileId == 0 && _ffmpegProfiles.Count > 0)
+            {
+                _ffmpegProfileId = _ffmpegProfiles[0].Id;
+            }
+
+            if (!string.IsNullOrWhiteSpace(PrefillName))
+            {
+                _name = PrefillName;
+            }
+
+            if (SmartCollectionId is > 0)
+            {
+                _contentKind = ChannelStationContentKind.ExistingSmartCollection;
+                _smartCollectionId = SmartCollectionId;
+                _step = Math.Max(_step, 1);
+            }
+            else if (!string.IsNullOrWhiteSpace(YouTubeSlug))
+            {
+                _contentKind = ChannelStationContentKind.YouTubeSlug;
+                _youtubeSlug = YouTubeSlug;
+                _step = Math.Max(_step, 1);
+            }
+            else if (!string.IsNullOrWhiteSpace(Query))
+            {
+                _contentKind = ChannelStationContentKind.SmartCollectionQuery;
+                _searchQuery = Query;
+                _step = Math.Max(_step, 1);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // ignore
+        }
+    }
+
+    private string StepSubtitle() => _step switch
+    {
+        0 => "Name and number",
+        1 => "What should play",
+        2 => "How it should play",
+        _ => "Watch next steps"
+    };
+
+    private bool CanAdvance() => _step switch
+    {
+        0 => !string.IsNullOrWhiteSpace(_name),
+        1 => _contentKind switch
+        {
+            ChannelStationContentKind.ExistingSmartCollection => _smartCollectionId is > 0,
+            ChannelStationContentKind.YouTubeSlug => !string.IsNullOrWhiteSpace(_youtubeSlug),
+            _ => !string.IsNullOrWhiteSpace(_searchQuery)
+        },
+        2 => true,
+        _ => false
+    };
+
+    private void PreviousStep()
+    {
+        if (_step > 0 && _step < 3)
+        {
+            _step--;
+        }
+    }
+
+    private async Task NextOrCreate()
+    {
+        if (_step < 2)
+        {
+            _step++;
+            return;
+        }
+
+        if (_step != 2 || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            ArtworkContentTypeModel logo = string.IsNullOrWhiteSpace(_logoUrl)
+                ? null
+                : new ArtworkContentTypeModel(_logoUrl.Trim(), string.Empty);
+
+            Either<BaseError, CreateChannelStationResult> maybeResult = await Mediator.Send(
+                new CreateChannelStation(
+                    _name.Trim(),
+                    string.IsNullOrWhiteSpace(_number) ? null : _number.Trim(),
+                    _group,
+                    _categories,
+                    logo,
+                    _ffmpegProfileId,
+                    _contentKind,
+                    _searchQuery,
+                    _youtubeSlug,
+                    _smartCollectionId,
+                    _playbackOrder,
+                    _playoutMode),
+                _cts?.Token ?? CancellationToken.None);
+
+            foreach (BaseError error in maybeResult.LeftToSeq())
+            {
+                Snackbar.Add(error.Value, Severity.Error);
+            }
+
+            foreach (CreateChannelStationResult result in maybeResult.RightToSeq())
+            {
+                _result = result;
+                Option<ChannelViewModel> channel = await Mediator.Send(
+                    new GetChannelById(result.ChannelId),
+                    _cts?.Token ?? CancellationToken.None);
+                _createdNumber = channel.Match(c => c.Number, () => _number);
+
+                List<ChannelHubSummaryViewModel> summaries = await Mediator.Send(
+                    new GetChannelsHubSummary(true),
+                    _cts?.Token ?? CancellationToken.None);
+                _summary = summaries.Find(c => c.Id == result.ChannelId);
+
+                _step = 3;
+                Snackbar.Add($"Created channel {_name}", Severity.Success);
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task PreviewCreatedChannel()
+    {
+        if (_result is null || string.IsNullOrWhiteSpace(_createdNumber))
+        {
+            return;
+        }
+
+        var uri = new UriBuilder(NavigationManager.ToAbsoluteUri(NavigationManager.Uri));
+        uri.Path = $"/iptv/channel/{_createdNumber}.m3u8";
+        uri.Query = "?mode=segmenter";
+
+        Uri rawPreview = NavigationManager.ToAbsoluteUri($"ffmpeg/preview/{_createdNumber}?fps=60");
+        if (Core.Settings.UiPort != Core.Settings.StreamingPort)
+        {
+            rawPreview = new UriBuilder(rawPreview) { Port = Core.Settings.UiPort }.Uri;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { "StreamUri", uri.ToString() },
+            { "RawPreviewUri", rawPreview.ToString() }
+        };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraLarge };
+        await Dialog.ShowAsync<ChannelPreviewDialog>("Channel Preview", parameters, options);
+    }
+
+    private async Task CopyM3U()
+    {
+        string url = NavigationManager.ToAbsoluteUri("iptv/channels.m3u").ToString();
+        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", url);
+        Snackbar.Add("Copied M3U URL", Severity.Success);
+    }
+}

@@ -8,9 +8,8 @@
 <div class="@((ContainerClass ?? "media-card-container mr-6") + " pb-3")" id="@($"item_{Data.MediaItemId}")">
     @if (SelectClicked.HasDelegate || !string.IsNullOrWhiteSpace(Href))
     {
-        <div class="@(IsSelected ? DeleteClicked.HasDelegate ? "media-card-selected-delete" : "media-card-selected" : "")"
-             style="border-radius: 4px; position: relative;">
-            <MudPaper Class="@($"media-card {CardClass}")" Style="position: relative; overflow: hidden;">
+        <div class="@($"media-card-frame {(IsSelected ? DeleteClicked.HasDelegate ? "media-card-selected-delete" : "media-card-selected" : string.Empty)}")">
+            <MudPaper Class="@($"media-card {CardClass}")" Elevation="1" Style="position: relative; overflow: hidden;">
                 @if (string.IsNullOrWhiteSpace(Data.Poster))
                 {
                     string placeholder = GetPlaceholder(Data.SortTitle);
@@ -107,7 +106,7 @@
     }
     else
     {
-        <MudPaper Class="@($"media-card {CardClass}")" Style="position: relative; overflow: hidden;">
+        <MudPaper Class="@($"media-card {CardClass}")" Elevation="1" Style="position: relative; overflow: hidden;">
             @if (string.IsNullOrWhiteSpace(Data.Poster))
             {
                 string placeholder = GetPlaceholder(Data.SortTitle);

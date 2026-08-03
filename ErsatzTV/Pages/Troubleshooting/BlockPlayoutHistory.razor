@@ -11,8 +11,7 @@
 <MudForm Style="max-height: 100%">
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Block Playout History</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Block Playout History"/>
             <MudTable Hover="true"
                       Dense="true"
                       Class="mt-8"
@@ -44,8 +43,7 @@
                     <MudTablePager/>
                 </PagerContent>
             </MudTable>
-            <MudText Typo="Typo.h5" Class="mt-10 mb-2">History Details</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="History Details" Class="mt-10"/>
             @if (_decodedHistory != null)
             {
                 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">

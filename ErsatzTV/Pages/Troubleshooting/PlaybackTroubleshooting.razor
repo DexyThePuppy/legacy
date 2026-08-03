@@ -21,7 +21,7 @@
 @inject IFileSystem FileSystem;
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
         <div class="d-none d-md-flex">
             <MudButton Variant="Variant.Filled"
                        Color="Color.Secondary"
@@ -45,6 +45,21 @@
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
+            @if (MediaItemId is null && ChannelId is null)
+            {
+                <PageHeader Title="Playback Troubleshooting"
+                            Subtitle="Open this tool from a channel's troubleshoot button, or pass ?channel={id} / ?mediaItem={id}."/>
+                <PageSurface>
+                    <MudText Class="mb-4">
+                        No channel or media item was selected. Use Channels → Troubleshoot on a live channel, or open a media item's troubleshooting entry.
+                    </MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="channels" StartIcon="@Icons.Material.Filled.Tv">
+                        Go to Channels
+                    </MudButton>
+                </PageSurface>
+            }
+            else
+            {
             <MudText Typo="Typo.h5" Class="mb-2">
                 @if (_channelMode)
                 {
@@ -144,8 +159,7 @@
                     <MudTextField @bind-Value="@(_seekSeconds)" Disabled="@(_startFromBeginning)"/>
                 </MudStack>
             }
-            <MudText Typo="Typo.h5" Class="mt-10 mb-2">Preview</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Preview" Class="mt-10"/>
             <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                 <div class="d-flex"></div>
                 <MudButton Variant="Variant.Filled"
@@ -168,24 +182,28 @@
                 </media-controller>
                 <div class="d-none d-md-flex" style="width: 400px"></div>
             </div>
-            @if (_lastSpeed is not null)
-            {
-                <MudText Typo="Typo.h5" Class="mt-10 mb-2">
-                    Logs <span class="@GetSpeedClass(_lastSpeed.Value)">(Speed: @(_lastSpeed.Value)x)</span>
-                </MudText>
-            }
-            else
-            {
-                <MudText Typo="Typo.h5" Class="mt-10 mb-2">Logs</MudText>
-            }
-            <MudDivider Class="mb-6"/>
-            <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="gap-md-8 mb-5">
-                <MudTextField T="string" @ref="_logsField" ReadOnly="true" Lines="20" Variant="Variant.Outlined" />
-            </MudStack>
+            <PageHeader Class="mt-10">
+                @if (_lastSpeed is not null)
+                {
+                    <MudText Typo="Typo.h4" Class="page-header__title">
+                        Logs <span class="@GetSpeedClass(_lastSpeed.Value)">(Speed: @(_lastSpeed.Value)x)</span>
+                    </MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.h4" Class="page-header__title">Logs</MudText>
+                }
+            </PageHeader>
+            <FormSection>
+                <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="gap-md-8 mb-5">
+                    <MudTextField T="string" @ref="_logsField" ReadOnly="true" Lines="20" Variant="Variant.Outlined" />
+                </MudStack>
+            </FormSection>
             <div class="mb-6">
                 <br/>
                 <br/>
             </div>
+            }
         </MudContainer>
     </div>
 </MudForm>
@@ -270,10 +288,6 @@
             {
                 _channelMode = true;
                 await LoadChannel(ChannelId.Value, token);
-            }
-            else
-            {
-                NavigationManager.NavigateTo("", new NavigationOptions { ReplaceHistoryEntry = true });
             }
         }
         catch (OperationCanceledException)
@@ -377,11 +391,6 @@
             _subtitleStreams.AddRange(await Mediator.Send(new GetTroubleshootingSubtitles(mediaItemId), cancellationToken));
         }
 
-        if (maybeInfo.IsLeft)
-        {
-            NavigationManager.NavigateTo("", new NavigationOptions { ReplaceHistoryEntry = true });
-        }
-
         StateHasChanged();
     }
 
@@ -399,11 +408,6 @@
             {
                 _streamSelector = channel.StreamSelector;
             }
-        }
-
-        if (maybeChannel.IsNone)
-        {
-            NavigationManager.NavigateTo("", new NavigationOptions { ReplaceHistoryEntry = true });
         }
 
         StateHasChanged();

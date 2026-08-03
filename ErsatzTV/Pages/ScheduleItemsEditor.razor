@@ -1,4 +1,4 @@
-﻿@page "/schedules/{Id:int}/items"
+@page "/schedules/{Id:int}/items"
 @using ErsatzTV.Application.Filler
 @using ErsatzTV.Application.Graphics
 @using ErsatzTV.Application.MediaCollections
@@ -15,7 +15,7 @@
 @inject IMediator Mediator
 
 <MudForm @ref="_form" @bind-IsValid="@_success" Style="max-height: 100%">
-<MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+<MudPaper Class="page-toolbar" Elevation="0" Square="true">
     <div style="display: flex; flex-direction: row; margin-bottom: auto; margin-top: auto; width: 100%; align-items: center" class="ml-6 mr-6">
         <div class="flex-grow-1">
             @if (_selectedItem is not null)
@@ -69,8 +69,7 @@
 </MudPaper>
 <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-<MudText Typo="Typo.h5" Class="mb-2">Schedule Items</MudText>
-<MudDivider Class="mb-6"/>
+<PageHeader Title="Schedule Items"/>
 <MudTable T="ProgramScheduleItemEditViewModel"
           Hover="true"
           Items="_schedule?.Items?.OrderBy(i => i.Index)"
@@ -151,8 +150,7 @@
 </MudTable>
 @if (_selectedItem is not null)
 {
-    <MudText Typo="Typo.h5" Class="mt-10 mb-2">Schedule Item</MudText>
-    <MudDivider Class="mb-6"/>
+    <PageHeader Title="Schedule Item" Class="mt-10"/>
     <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
         <div class="d-flex">
             <MudText>Start Type</MudText>
@@ -608,8 +606,7 @@
             <MudSelectItem Value="@GuideMode.Filler">Filler</MudSelectItem>
         </MudSelect>
     </MudStack>
-    <MudText Typo="Typo.h5" Class="mt-10 mb-2">Schedule Item Filler</MudText>
-    <MudDivider Class="mb-6"/>
+    <PageHeader Title="Schedule Item Filler" Class="mt-10"/>
     <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
         <div class="d-flex">
             <MudText>Pre-Roll Filler</MudText>
@@ -675,8 +672,7 @@
             }
         </MudSelect>
     </MudStack>
-    <MudText Typo="Typo.h5" Class="mt-10 mb-2">Schedule Item Overrides</MudText>
-    <MudDivider Class="mb-6"/>
+    <PageHeader Title="Schedule Item Overrides" Class="mt-10"/>
     <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
         <div class="d-flex">
             <MudText>Watermarks</MudText>

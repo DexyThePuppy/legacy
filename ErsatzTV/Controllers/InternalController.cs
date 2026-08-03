@@ -1,5 +1,6 @@
 ﻿using System.CommandLine.Parsing;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using CliWrap;
 using ErsatzTV.Application.Emby;
@@ -71,6 +72,207 @@ public class InternalController : StreamingControllerBase
 
     [HttpGet("ffmpeg/stream/{channelNumber}")]
     public Task<IActionResult> GetStream(string channelNumber) => GetTsLegacyStream(channelNumber);
+
+    [HttpGet("ffmpeg/preview/{channelNumber}")]
+    public async Task GetChannelPreview(
+        string channelNumber,
+        [FromQuery] int? fps,
+        CancellationToken cancellationToken)
+    {
+        int previewFps = Math.Clamp(fps ?? 10, 1, 60);
+
+        await using TvContext dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+        Option<string> maybeFFmpegPath = await dbContext.ConfigElements.GetValue<string>(
+            ConfigElementKey.FFmpegPath,
+            cancellationToken);
+
+        if (maybeFFmpegPath.IsNone)
+        {
+            Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        string ffmpegPath = maybeFFmpegPath.ValueUnsafe();
+
+        Either<BaseError, ChannelPreviewSource> initialSource =
+            await _mediator.Send(new GetChannelPreviewSource(channelNumber), cancellationToken);
+
+        foreach (BaseError error in initialSource.LeftToSeq())
+        {
+            _logger.LogDebug("Channel preview unavailable for {Channel}: {Error}", channelNumber, error.Value);
+            Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        Response.ContentType = "multipart/x-mixed-replace;boundary=ffmpeg";
+        Response.Headers.CacheControl = "no-cache, no-store";
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            Either<BaseError, ChannelPreviewSource> maybeSource =
+                await _mediator.Send(new GetChannelPreviewSource(channelNumber), cancellationToken);
+
+            foreach (BaseError error in maybeSource.LeftToSeq())
+            {
+                _logger.LogDebug(
+                    "Channel preview source unavailable for {Channel}, ending stream: {Error}",
+                    channelNumber,
+                    error.Value);
+                return;
+            }
+
+            foreach (ChannelPreviewSource source in maybeSource.RightToSeq())
+            {
+                using FFmpegProcess process = CreateChannelPreviewProcess(ffmpegPath, source, previewFps);
+
+                _logger.LogDebug(
+                    "Starting {Fps}fps MJPEG preview segment for channel {Channel} at {Seek} (paused={Paused})",
+                    previewFps,
+                    channelNumber,
+                    source.Seek,
+                    source.IsPaused);
+
+                try
+                {
+                    process.Start();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to start channel preview ffmpeg for channel {Channel}", channelNumber);
+                    return;
+                }
+
+                try
+                {
+                    await process.StandardOutput.BaseStream.CopyToAsync(Response.Body, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (IOException)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await process.WaitForExitAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                if (process.ExitCode != 0)
+                {
+                    _logger.LogDebug(
+                        "Channel preview ffmpeg exited with code {ExitCode} for channel {Channel}",
+                        process.ExitCode,
+                        channelNumber);
+                }
+
+                // Paused freeze runs until disconnect; avoid a tight restart loop.
+                if (source.IsPaused)
+                {
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                }
+                else if (source.IsLive)
+                {
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    private static FFmpegProcess CreateChannelPreviewProcess(string ffmpegPath, ChannelPreviewSource source, int fps)
+    {
+        var process = new FFmpegProcess
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                RedirectStandardOutput = true,
+                RedirectStandardError = false,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+
+        // Higher fps dialog previews use a larger scale; table thumbs stay small.
+        int scaleWidth = fps >= 30 ? 1280 : 320;
+        string scale = $"scale={scaleWidth}:-2:flags=fast_bilinear";
+
+        process.StartInfo.ArgumentList.Add("-hide_banner");
+        process.StartInfo.ArgumentList.Add("-nostats");
+        process.StartInfo.ArgumentList.Add("-loglevel");
+        process.StartInfo.ArgumentList.Add("error");
+        if (!source.IsLive && source.Seek > TimeSpan.Zero)
+        {
+            process.StartInfo.ArgumentList.Add("-ss");
+            process.StartInfo.ArgumentList.Add(source.Seek.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture));
+        }
+
+        // While paused, freeze a single frame so the preview does not play ahead and jump back.
+        if (source.IsPaused && !source.IsLive)
+        {
+            process.StartInfo.ArgumentList.Add("-i");
+            process.StartInfo.ArgumentList.Add(source.Path);
+            process.StartInfo.ArgumentList.Add("-an");
+            process.StartInfo.ArgumentList.Add("-vf");
+            process.StartInfo.ArgumentList.Add(
+                $"{scale},loop=loop=-1:size=1:start=0,setpts=N/{fps}/TB,fps={fps}");
+            process.StartInfo.ArgumentList.Add("-c:v");
+            process.StartInfo.ArgumentList.Add("mjpeg");
+            process.StartInfo.ArgumentList.Add("-q:v");
+            process.StartInfo.ArgumentList.Add(fps >= 30 ? "5" : "8");
+            process.StartInfo.ArgumentList.Add("-f");
+            process.StartInfo.ArgumentList.Add("mpjpeg");
+            process.StartInfo.ArgumentList.Add("-");
+            return process;
+        }
+
+        if (!source.IsLive)
+        {
+            process.StartInfo.ArgumentList.Add("-re");
+        }
+
+        process.StartInfo.ArgumentList.Add("-i");
+        process.StartInfo.ArgumentList.Add(source.Path);
+        process.StartInfo.ArgumentList.Add("-an");
+        // Short chunks so each restart re-reads playout seek (controls stay in sync).
+        if (!source.IsLive)
+        {
+            process.StartInfo.ArgumentList.Add("-t");
+            process.StartInfo.ArgumentList.Add("2");
+        }
+
+        process.StartInfo.ArgumentList.Add("-vf");
+        process.StartInfo.ArgumentList.Add($"fps={fps},{scale}");
+        process.StartInfo.ArgumentList.Add("-c:v");
+        process.StartInfo.ArgumentList.Add("mjpeg");
+        process.StartInfo.ArgumentList.Add("-q:v");
+        process.StartInfo.ArgumentList.Add(fps >= 30 ? "5" : "8");
+        process.StartInfo.ArgumentList.Add("-f");
+        process.StartInfo.ArgumentList.Add("mpjpeg");
+        process.StartInfo.ArgumentList.Add("-");
+
+        return process;
+    }
 
     [HttpGet("ffmpeg/music-video-credits/{playoutItemId:int}")]
     public async Task<IActionResult> GetMusicVideoCredits(
@@ -191,7 +393,7 @@ public class InternalController : StreamingControllerBase
                 {
                     FileName = maybeYtDlpPath.ValueUnsafe(),
                     RedirectStandardOutput = true,
-                    RedirectStandardError = false,
+                    RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true
                 }
@@ -202,6 +404,12 @@ public class InternalController : StreamingControllerBase
             ytDlpProcess.StartInfo.ArgumentList.Add("--no-warnings");
             ytDlpProcess.StartInfo.ArgumentList.Add("--no-playlist");
             ytDlpProcess.StartInfo.ArgumentList.Add("--quiet");
+
+            foreach (string arg in YtDlpSettings.SplitExtraArgs(settings.ExtraArgs))
+            {
+                ytDlpProcess.StartInfo.ArgumentList.Add(arg);
+            }
+
             ytDlpProcess.StartInfo.ArgumentList.Add("-o");
             ytDlpProcess.StartInfo.ArgumentList.Add("-");
             ytDlpProcess.StartInfo.ArgumentList.Add(remoteStream.Url);
@@ -249,6 +457,7 @@ public class InternalController : StreamingControllerBase
             _logger.LogDebug("Live streaming remote stream {Id} via yt-dlp", remoteStreamId);
 
             ytDlpProcess.Start();
+            Task<string> stderrTask = ytDlpProcess.StandardError.ReadToEndAsync(cancellationToken);
             ffmpegProcess.Start();
 
             // pump yt-dlp stdout into ffmpeg stdin in the background
@@ -279,7 +488,81 @@ public class InternalController : StreamingControllerBase
                 },
                 cancellationToken);
 
-            return new FileStreamResult(ffmpegProcess.StandardOutput.BaseStream, "video/mp2t");
+            // wait for first remuxed bytes so age-gate / cookie failures don't return empty 200
+            var firstChunk = new byte[16 * 1024];
+            int bytesRead;
+            using (var startupCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                startupCts.CancelAfter(TimeSpan.FromSeconds(20));
+                try
+                {
+                    bytesRead = await ffmpegProcess.StandardOutput.BaseStream.ReadAsync(
+                        firstChunk.AsMemory(0, firstChunk.Length),
+                        startupCts.Token);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    bytesRead = 0;
+                }
+            }
+
+            if (bytesRead <= 0)
+            {
+                try
+                {
+                    if (!ytDlpProcess.HasExited)
+                    {
+                        ytDlpProcess.Kill(entireProcessTree: true);
+                    }
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+
+                string stderr = string.Empty;
+                try
+                {
+                    stderr = await stderrTask.WaitAsync(TimeSpan.FromSeconds(2), CancellationToken.None);
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+
+                _logger.LogWarning(
+                    "yt-dlp live stream for remote stream {Id} produced no media: {Error}",
+                    remoteStreamId,
+                    string.IsNullOrWhiteSpace(stderr) ? "no stderr output" : stderr.Trim());
+
+                return StatusCode(StatusCodes.Status502BadGateway);
+            }
+
+            _ = Task.Run(
+                async () =>
+                {
+                    try
+                    {
+                        string stderr = await stderrTask;
+                        if (!string.IsNullOrWhiteSpace(stderr))
+                        {
+                            _logger.LogDebug(
+                                "yt-dlp live stream stderr for remote stream {Id}: {Error}",
+                                remoteStreamId,
+                                stderr.Trim());
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // ignored
+                    }
+                },
+                CancellationToken.None);
+
+            Response.ContentType = "video/mp2t";
+            await Response.Body.WriteAsync(firstChunk.AsMemory(0, bytesRead), cancellationToken);
+            await ffmpegProcess.StandardOutput.BaseStream.CopyToAsync(Response.Body, cancellationToken);
+            return new EmptyResult();
         }
 
         return NotFound();

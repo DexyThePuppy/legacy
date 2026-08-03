@@ -10,6 +10,8 @@ public interface IFFmpegSegmenterService
     void RemoveWorker(string channelNumber, out IHlsSessionWorker inactiveWorker);
     bool IsActive(string channelNumber);
     Task<bool> StopChannel(string channelNumber, CancellationToken cancellationToken);
+    bool PauseChannel(string channelNumber);
+    bool ResumeChannel(string channelNumber);
     void TouchChannel(string channelNumber, string fileName);
     void PlayoutUpdated(string channelNumber);
 }

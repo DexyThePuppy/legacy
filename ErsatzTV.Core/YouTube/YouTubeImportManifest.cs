@@ -21,4 +21,10 @@ public class YouTubeImportManifest
     // monotonically increasing ordinal used to derive pseudo release dates
     // for videos with unknown upload dates (preserves oldest-to-newest order)
     public int NextIndex { get; set; }
+
+    // optional station graph created via CreateChannelStation
+    public int? ChannelId { get; set; }
+    public int? SmartCollectionId { get; set; }
+    public int? ProgramScheduleId { get; set; }
+    public int? PlayoutId { get; set; }
 }

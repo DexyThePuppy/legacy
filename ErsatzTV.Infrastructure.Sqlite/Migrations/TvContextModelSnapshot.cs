@@ -324,6 +324,12 @@ namespace ErsatzTV.Infrastructure.Sqlite.Migrations
                     b.Property<string>("Number")
                         .HasColumnType("TEXT");
 
+                    b.Property<TimeSpan>("PlaybackControlOffset")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("PlaybackPausedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("PlayoutMode")
                         .HasColumnType("INTEGER");
 

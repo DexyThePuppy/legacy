@@ -1,0 +1,11 @@
+<MudPaper Class="@($"page-toolbar {Class}")" Elevation="0" Square="true">
+    @ChildContent
+</MudPaper>
+
+@code {
+    [Parameter]
+    public RenderFragment ChildContent { get; set; }
+
+    [Parameter]
+    public string Class { get; set; }
+}

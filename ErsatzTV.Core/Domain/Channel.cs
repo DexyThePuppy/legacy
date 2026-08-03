@@ -43,6 +43,15 @@ public class Channel
     public int? MirrorSourceChannelId { get; set; }
     public Channel MirrorSourceChannel { get; set; }
     public TimeSpan? PlayoutOffset { get; set; }
+    /// <summary>
+    /// Offset applied by Channels page playback controls (seek/skip/pause resume).
+    /// Independent of mirror <see cref="PlayoutOffset"/>.
+    /// </summary>
+    public TimeSpan PlaybackControlOffset { get; set; }
+    /// <summary>
+    /// When set, channel playout clock is frozen at this instant (pause).
+    /// </summary>
+    public DateTimeOffset? PlaybackPausedAt { get; set; }
     public ChannelTranscodeMode TranscodeMode { get; set; }
     public ChannelIdleBehavior IdleBehavior { get; set; }
     public bool IsEnabled { get; set; }

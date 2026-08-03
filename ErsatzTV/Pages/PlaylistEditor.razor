@@ -1,4 +1,4 @@
-﻿@page "/media/playlists/{Id:int}"
+@page "/media/playlists/{Id:int}"
 @using ErsatzTV.Application.MediaCollections
 @using ErsatzTV.Application.MediaItems
 @using ErsatzTV.Application.Scheduling
@@ -10,7 +10,7 @@
 @inject IMediator Mediator
 
 <MudForm Style="max-height: 100%">
-<MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+<MudPaper Class="page-toolbar" Elevation="0" Square="true">
     <div style="display: flex; flex-direction: row; margin-bottom: auto; margin-top: auto; width: 100%; align-items: center" class="ml-6 mr-6">
         <div class="d-none d-md-flex">
             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@SaveChanges" StartIcon="@Icons.Material.Filled.Save" Disabled="@(_playlist.IsSystem)">
@@ -35,16 +35,14 @@
 </MudPaper>
 <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-<MudText Typo="Typo.h5" Class="mb-2">Playlist</MudText>
-<MudDivider Class="mb-6"/>
+<PageHeader Title="Playlist"/>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Name</MudText>
     </div>
     <MudTextField @bind-Value="_playlist.Name" For="@(() => _playlist.Name)" Disabled="@(_playlist.IsSystem)"/>
 </MudStack>
-<MudText Typo="Typo.h5" Class="mt-10 mb-2">Playlist Items</MudText>
-<MudDivider Class="mb-6"/>
+<PageHeader Title="Playlist Items" Class="mt-10"/>
 <MudTable Hover="true" Items="_playlist.Items.OrderBy(i => i.Index)" Dense="true" @bind-SelectedItem="_selectedItem" RowClassFunc="@SelectedRowClassFunc">
     <ColGroup>
         <MudHidden Breakpoint="Breakpoint.Xs">
@@ -117,8 +115,7 @@
 </MudTable>
 @if (!_playlist.IsSystem && _selectedItem is not null)
 {
-    <MudText Typo="Typo.h5" Class="mt-10 mb-2">Playlist Item</MudText>
-    <MudDivider Class="mb-6"/>
+    <PageHeader Title="Playlist Item" Class="mt-10"/>
     <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
         <div class="d-flex">
             <MudText>Collection Type</MudText>
@@ -314,14 +311,12 @@
 }
 else if (!string.IsNullOrWhiteSpace(_previewMessage))
 {
-    <MudText Typo="Typo.h5" Class="mt-10 mb-2">Preview</MudText>
-    <MudDivider Class="mb-6"/>
+    <PageHeader Title="Preview" Class="mt-10"/>
     <MudAlert Severity="Severity.Warning">@_previewMessage</MudAlert>
 }
 else if (_previewItems is not null)
 {
-    <MudText Typo="Typo.h5" Class="mt-10 mb-2">Preview</MudText>
-    <MudDivider Class="mb-6"/>
+    <PageHeader Title="Preview" Class="mt-10"/>
     <MudTable Hover="true"
               Dense="true"
               Items="_previewItems">

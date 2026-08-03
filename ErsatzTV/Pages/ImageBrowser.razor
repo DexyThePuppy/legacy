@@ -1,4 +1,4 @@
-﻿@page "/media/browser/images"
+@page "/media/browser/images"
 @using System.Net
 @using ErsatzTV.Application.Images
 @implements IDisposable
@@ -8,8 +8,7 @@
 <MudForm Style="max-height: 100%">
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Images</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Images"/>
             <MudCard>
                 <MudTreeView T="ImageTreeItemViewModel" ServerData="LoadServerData" Items="@TreeItems" Hover="true" ExpandOnClick="true">
                     <ItemTemplate Context="item">

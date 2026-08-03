@@ -23,7 +23,8 @@ public class GetChannelPlaylistHandler(IChannelRepository channelRepository)
         var result = new List<Channel>();
         foreach (Channel channel in channels)
         {
-            if (!channel.IsEnabled)
+            // Live / IPTV tune-in requires playout + enabled (align with XMLTV playout gate)
+            if (!channel.IsEnabled || !HasPlayout(channel))
             {
                 continue;
             }
@@ -54,4 +55,9 @@ public class GetChannelPlaylistHandler(IChannelRepository channelRepository)
 
         return result;
     }
+
+    private static bool HasPlayout(Channel channel) =>
+        channel.Playouts is { Count: > 0 } ||
+        (channel.PlayoutSource is ChannelPlayoutSource.Mirror &&
+         channel.MirrorSourceChannel?.Playouts is { Count: > 0 });
 }

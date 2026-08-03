@@ -1,4 +1,4 @@
-﻿@page "/media/trash"
+@page "/media/trash"
 @using ErsatzTV.Application.Maintenance
 @using ErsatzTV.Application.MediaCards
 @using ErsatzTV.Application.Search
@@ -9,7 +9,7 @@
 @inject PersistentComponentState ApplicationState
 
 <MudForm Style="max-height: 100%">
-<MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100;">
+<MudPaper Class="page-toolbar" Elevation="0" Square="true">
     <div style="display: flex; flex-direction: row; margin-bottom: auto; margin-top: auto; width: 100%; align-items: center" class="ml-6 mr-6">
         @if (IsSelectMode())
         {

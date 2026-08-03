@@ -1,4 +1,4 @@
-﻿@page "/media/sources/local/{Id:int}/edit"
+@page "/media/sources/local/{Id:int}/edit"
 @page "/media/sources/local/add"
 @using ErsatzTV.Application.Libraries
 @implements IDisposable
@@ -10,13 +10,12 @@
 @inject NavigationManager NavigationManager
 
 <MudForm @ref="_form" Model="@_model" @bind-IsValid="@_success" Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" OnClick="@SaveChangesAsync" StartIcon="@(IsEdit ? Icons.Material.Filled.Save : Icons.Material.Filled.Add)">@(IsEdit ? "Save Local Library" : "Add Local Library")</MudButton>
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@SaveChangesAsync" StartIcon="@(IsEdit ? Icons.Material.Filled.Save : Icons.Material.Filled.Add)">@(IsEdit ? "Save Local Library" : "Add Local Library")</MudButton>
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Local Library</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Local Library"/>
             <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                 <div class="d-flex">
                     <MudText>Name</MudText>

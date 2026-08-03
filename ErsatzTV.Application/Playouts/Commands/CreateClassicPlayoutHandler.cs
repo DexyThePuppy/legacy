@@ -29,17 +29,38 @@ public class CreateClassicPlayoutHandler : IRequestHandler<CreateClassicPlayout,
     {
         await using TvContext dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
         Validation<BaseError, Playout> validation = await Validate(dbContext, request, cancellationToken);
-        return await validation.Apply(playout => PersistPlayout(dbContext, playout));
+        return await validation.Apply(playout => PersistPlayout(dbContext, request, playout));
     }
 
-    private async Task<CreatePlayoutResponse> PersistPlayout(TvContext dbContext, Playout playout)
+    private async Task<CreatePlayoutResponse> PersistPlayout(
+        TvContext dbContext,
+        CreateClassicPlayout request,
+        Playout playout)
     {
         await dbContext.Playouts.AddAsync(playout);
         await dbContext.SaveChangesAsync();
-        await _channel.WriteAsync(new BuildPlayout(playout.Id, PlayoutBuildMode.Reset));
-        if (playout.Channel.PlayoutMode is ChannelPlayoutMode.OnDemand)
+
+        if (request.QueueInitialBuild)
         {
-            await _channel.WriteAsync(new TimeShiftOnDemandPlayout(playout.Id, DateTimeOffset.Now, false));
+            await _channel.WriteAsync(new BuildPlayout(playout.Id, PlayoutBuildMode.Reset));
+            if (playout.Channel.PlayoutMode is ChannelPlayoutMode.OnDemand)
+            {
+                await _channel.WriteAsync(new TimeShiftOnDemandPlayout(playout.Id, DateTimeOffset.Now, false));
+            }
+        }
+        else
+        {
+            // mark pending so RebuildFailedPlayouts can finish after media is indexed
+            await dbContext.PlayoutBuildStatus.AddAsync(
+                new PlayoutBuildStatus
+                {
+                    PlayoutId = playout.Id,
+                    LastBuild = DateTimeOffset.Now,
+                    Success = false,
+                    Message =
+                        "Waiting for media to be indexed; playout will build automatically when items are available."
+                });
+            await dbContext.SaveChangesAsync();
         }
 
         await _channel.WriteAsync(new RefreshChannelList());

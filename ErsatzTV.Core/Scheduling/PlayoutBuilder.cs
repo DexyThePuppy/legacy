@@ -394,25 +394,29 @@ public class PlayoutBuilder : IPlayoutBuilder
         {
             Option<string> maybeName =
                 await _mediaCollectionRepository.GetNameFromKey(emptyCollection, cancellationToken);
+            const string Hint =
+                " Media may still be indexing; the playout will rebuild automatically when items are available.";
             return maybeName.Match(
                 name =>
                 {
-                    _logger.LogError(
-                        "Unable to rebuild playout; {CollectionType} \"{CollectionName}\" has no valid items!",
+                    _logger.LogWarning(
+                        "Unable to rebuild playout; {CollectionType} \"{CollectionName}\" has no valid items!{Hint}",
                         emptyCollection.CollectionType,
-                        name);
+                        name,
+                        Hint);
 
                     return BaseError.New(
-                        $"Unable to rebuild playout; {emptyCollection.CollectionType} \"{name}\" has no valid items!");
+                        $"Unable to rebuild playout; {emptyCollection.CollectionType} \"{name}\" has no valid items!{Hint}");
                 },
                 () =>
                 {
-                    _logger.LogError(
-                        "Unable to rebuild playout; collection {@CollectionKey} has no valid items!",
-                        emptyCollection);
+                    _logger.LogWarning(
+                        "Unable to rebuild playout; collection {@CollectionKey} has no valid items!{Hint}",
+                        emptyCollection,
+                        Hint);
 
                     return BaseError.New(
-                        $"Unable to rebuild playout; collection {HistoryDetails.KeyForCollectionKey(emptyCollection)} has no valid items!");
+                        $"Unable to rebuild playout; collection {HistoryDetails.KeyForCollectionKey(emptyCollection)} has no valid items!{Hint}");
                 });
         }
 

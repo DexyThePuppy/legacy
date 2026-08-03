@@ -37,16 +37,30 @@ public class DeleteChannelHandler : IRequestHandler<DeleteChannel, Either<BaseEr
 
     private async Task<Unit> DoDeletion(TvContext dbContext, Channel channel, CancellationToken cancellationToken)
     {
+        // delete dependent mirrors first so they are not left with a null MirrorSourceChannelId
+        List<Channel> mirrors = await dbContext.Channels
+            .Where(c => c.MirrorSourceChannelId == channel.Id)
+            .ToListAsync(cancellationToken);
+
+        var guideCacheNumbers = new List<string> { channel.Number };
+        foreach (Channel mirror in mirrors)
+        {
+            guideCacheNumbers.Add(mirror.Number);
+            dbContext.Channels.Remove(mirror);
+        }
+
         dbContext.Channels.Remove(channel);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         _searchTargets.SearchTargetsChanged();
 
-        // delete channel data from channel guide cache
-        string cacheFile = Path.Combine(FileSystemLayout.ChannelGuideCacheFolder, $"{channel.Number}.xml");
-        if (_fileSystem.File.Exists(cacheFile))
+        foreach (string number in guideCacheNumbers.Distinct())
         {
-            File.Delete(cacheFile);
+            string cacheFile = Path.Combine(FileSystemLayout.ChannelGuideCacheFolder, $"{number}.xml");
+            if (_fileSystem.File.Exists(cacheFile))
+            {
+                File.Delete(cacheFile);
+            }
         }
 
         // refresh channel list to remove channel that has no playout

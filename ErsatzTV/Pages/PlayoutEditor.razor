@@ -1,4 +1,4 @@
-﻿@page "/playouts/add"
+@page "/playouts/add"
 @page "/playouts/add/{kind}"
 @using System.Globalization
 @using ErsatzTV.Application.Channels
@@ -12,15 +12,14 @@
 @inject IMediator Mediator
 
 <MudForm @ref="_form" Validation="@(_validator.ValidateValue)" ValidationDelay="0" Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
         <MudButton Class="ml-6" OnClick="@HandleSubmitAsync" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add">
             Add Playout
         </MudButton>
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Playout</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Playout"/>
             <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                 <div class="d-flex">
                     <MudText>Channel</MudText>

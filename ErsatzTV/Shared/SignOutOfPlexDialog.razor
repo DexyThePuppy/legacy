@@ -1,4 +1,4 @@
-﻿<div @onkeydown="@OnKeyDown">
+<div @onkeydown="@OnKeyDown">
     <MudDialog>
         <DialogContent>
             <MudContainer>
@@ -8,7 +8,7 @@
             </MudContainer>
         </DialogContent>
         <DialogActions>
-            <MudButton OnClick="Cancel">Cancel</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
             <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Submit">Sign out</MudButton>
         </DialogActions>
     </MudDialog>

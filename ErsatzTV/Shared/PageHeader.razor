@@ -1,0 +1,37 @@
+<div class="@($"page-header {Class}")">
+    @if (!string.IsNullOrWhiteSpace(Title))
+    {
+        <MudText Typo="Typo.h4" Class="page-header__title">@Title</MudText>
+    }
+    @if (!string.IsNullOrWhiteSpace(Subtitle))
+    {
+        <MudText Typo="Typo.body1" Class="page-header__subtitle">@Subtitle</MudText>
+    }
+    @if (ChildContent is not null)
+    {
+        <div class="mb-1">
+            @ChildContent
+        </div>
+    }
+    @if (ShowDivider)
+    {
+        <MudDivider Class="page-header__divider"/>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string Title { get; set; }
+
+    [Parameter]
+    public string Subtitle { get; set; }
+
+    [Parameter]
+    public bool ShowDivider { get; set; } = true;
+
+    [Parameter]
+    public string Class { get; set; }
+
+    [Parameter]
+    public RenderFragment ChildContent { get; set; }
+}

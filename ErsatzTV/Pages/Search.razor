@@ -1,4 +1,4 @@
-﻿@page "/search"
+@page "/search"
 @inherits MultiSelectBase<Search>
 @inject NavigationManager NavigationManager
 @inject PersistentComponentState ApplicationState
@@ -9,7 +9,7 @@
 @implements IDisposable
 
 <MudForm Style="max-height: 100%">
-<MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100;">
+<MudPaper Class="page-toolbar" Elevation="0" Square="true">
     <div style="display: flex; flex-direction: row; margin-bottom: auto; margin-top: auto; width: 100%; align-items: center" class="ml-6 mr-6">
         @if (IsSelectMode())
         {
@@ -51,6 +51,17 @@
         {
             <div style="align-items: center; display: flex; width: 100%" class="d-none d-md-flex">
                 <MudText>@_query</MudText>
+                @if (!string.IsNullOrWhiteSpace(_query))
+                {
+                    <MudButton Class="ml-4"
+                               Variant="Variant.Outlined"
+                               Color="Color.Primary"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Tv"
+                               Href="@($"channels/add?query={Uri.EscapeDataString(_query)}")">
+                        Create Channel from this
+                    </MudButton>
+                }
                 @if (_movies?.Count > 0)
                 {
                     <MudLink Class="ml-4" Href="@(NavigationManager.Uri.Split("#").Head() + "#movies")" Style="margin-bottom: auto; margin-top: auto">@_movies.Count Movies</MudLink>

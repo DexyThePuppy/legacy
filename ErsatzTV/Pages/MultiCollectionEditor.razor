@@ -1,4 +1,4 @@
-﻿@page "/media/multi-collections/{Id:int}/edit"
+@page "/media/multi-collections/{Id:int}/edit"
 @page "/media/multi-collections/add"
 @using ErsatzTV.Application.MediaCollections
 @implements IDisposable
@@ -8,15 +8,14 @@
 @inject ILogger<MultiCollectionEditor> Logger
 
 <MudForm @ref="_form" @bind-IsValid="@_success" Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(_ => HandleSubmitAsync())" Class="ml-6" StartIcon="@Icons.Material.Filled.Save">
             @(IsEdit ? "Save Multi Collection" : "Add Multi Collection")
         </MudButton>
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Multi Collection</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Multi Collection"/>
             <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                 <div class="d-flex">
                     <MudText>Name</MudText>
@@ -69,8 +68,7 @@
                     Add Smart Collection
                 </MudButton>
             </MudStack>
-            <MudText Typo="Typo.h5" Class="mt-10 mb-2">@_model.Name Items</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="@($"{_model.Name} Items")" Class="mt-10"/>
             <MudTable Hover="true" Items="_model.Items.OrderBy(i => i.Collection.Name, StringComparer.CurrentCultureIgnoreCase)" Dense="true">
                 <ColGroup>
                     <MudHidden Breakpoint="Breakpoint.Xs">

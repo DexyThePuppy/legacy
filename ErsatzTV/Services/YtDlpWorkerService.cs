@@ -35,7 +35,10 @@ public class YtDlpWorkerService : BackgroundService
     private readonly ILogger<YtDlpWorkerService> _logger;
     private readonly IServiceScopeFactory _serviceScopeFactory;
 
+    private static readonly TimeSpan AuthFailureCooldown = TimeSpan.FromHours(6);
+
     private readonly ConcurrentDictionary<string, bool> _inFlightDownloads = new();
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _downloadCooldowns = new();
     private readonly SemaphoreSlim _downloadSemaphore = new(MaxConcurrentDownloads);
     private readonly SemaphoreSlim _maintenanceSemaphore = new(1);
 
@@ -123,6 +126,16 @@ public class YtDlpWorkerService : BackgroundService
                         return;
                     }
 
+                    if (_downloadCooldowns.TryGetValue(videoId, out DateTimeOffset cooldownUntil) &&
+                        cooldownUntil > DateTimeOffset.UtcNow)
+                    {
+                        _logger.LogDebug(
+                            "Skipping YouTube download for {VideoId}; cooling down until {Until}",
+                            videoId,
+                            cooldownUntil);
+                        return;
+                    }
+
                     if (!_inFlightDownloads.TryAdd(videoId, true))
                     {
                         return;
@@ -141,10 +154,20 @@ public class YtDlpWorkerService : BackgroundService
                                 "Failed to download YouTube video {VideoId}: {Error}",
                                 videoId,
                                 error.Value);
+
+                            if (IsAuthOrAgeGateFailure(error.Value))
+                            {
+                                _downloadCooldowns[videoId] = DateTimeOffset.UtcNow.Add(AuthFailureCooldown);
+                                _logger.LogWarning(
+                                    "YouTube video {VideoId} needs cookies/login; will not retry for {Hours} hours",
+                                    videoId,
+                                    AuthFailureCooldown.TotalHours);
+                            }
                         }
 
                         foreach (string file in maybeFile.RightToSeq())
                         {
+                            _downloadCooldowns.TryRemove(videoId, out _);
                             await RefreshStatisticsFromFile(scope, dbContext, remoteStream, file, cancellationToken);
                             await ytDlpService.EnforceCacheSize(cancellationToken);
                         }
@@ -165,6 +188,15 @@ public class YtDlpWorkerService : BackgroundService
             _downloadSemaphore.Release();
         }
     }
+
+    private static bool IsAuthOrAgeGateFailure(string error) =>
+        !string.IsNullOrWhiteSpace(error) &&
+        (error.Contains("Sign in to confirm your age", StringComparison.OrdinalIgnoreCase) ||
+         error.Contains("confirm your age", StringComparison.OrdinalIgnoreCase) ||
+         error.Contains("cookies-from-browser", StringComparison.OrdinalIgnoreCase) ||
+         error.Contains("Use --cookies", StringComparison.OrdinalIgnoreCase) ||
+         error.Contains("login required", StringComparison.OrdinalIgnoreCase) ||
+         error.Contains("Failed to decrypt with DPAPI", StringComparison.OrdinalIgnoreCase));
 
     private async Task RefreshStatisticsFromFile(
         IServiceScope scope,

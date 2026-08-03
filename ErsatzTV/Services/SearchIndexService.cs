@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using ErsatzTV.Application;
+using ErsatzTV.Application.Playouts;
 using ErsatzTV.Application.Search;
 using ErsatzTV.Core;
 using MediatR;
@@ -151,6 +152,9 @@ public class SearchIndexService : BackgroundService
             if (idsToReindex.Count > 0)
             {
                 await mediator.Send(new ReindexMediaItems(idsToReindex), stoppingToken);
+
+                // Smart collections resolve via the search index; retry playouts that failed while empty
+                await mediator.Send(new RebuildFailedPlayouts(), stoppingToken);
             }
         }
         catch (Exception ex)

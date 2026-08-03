@@ -1,4 +1,4 @@
-﻿@page "/media/collections/{Id:int}/edit"
+@page "/media/collections/{Id:int}/edit"
 @page "/media/collections/add"
 @using ErsatzTV.Application.MediaCollections
 @implements IDisposable
@@ -8,13 +8,12 @@
 @inject IMediator Mediator
 
 <MudForm @ref="_form" @bind-IsValid="@_success" Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" OnClick="@HandleSubmitAsync" StartIcon="@(IsEdit ? Icons.Material.Filled.Save : Icons.Material.Filled.Add)">@(IsEdit ? "Save Collection" : "Add Collection")</MudButton>
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@HandleSubmitAsync" StartIcon="@(IsEdit ? Icons.Material.Filled.Save : Icons.Material.Filled.Add)">@(IsEdit ? "Save Collection" : "Add Collection")</MudButton>
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Collection</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Collection"/>
             <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                 <div class="d-flex">
                     <MudText>Name</MudText>

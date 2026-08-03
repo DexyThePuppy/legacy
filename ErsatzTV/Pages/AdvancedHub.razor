@@ -1,0 +1,51 @@
+@page "/advanced"
+@inject IStringLocalizer<ErsatzTV.Locals.Shared.MainLayout> Loc
+
+<MudForm Style="max-height: 100%">
+    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
+            <PageHeader Title="@Loc["ButtonAdvanced"]"
+                        Subtitle="Scheduling, appearance, and encoding"/>
+            <PageSurface>
+                <MudText Typo="Typo.h6" Class="mb-3">@Loc["ButtonScheduling"]</MudText>
+                <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2" Class="mb-6">
+                    <MudButton Variant="Variant.Outlined" Href="schedules" StartIcon="@Icons.Material.Filled.EventNote">
+                        @Loc["ButtonSchedulingSchedules"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Href="playouts" StartIcon="@Icons.Material.Filled.Schedule">
+                        @Loc["ButtonSchedulingPlayouts"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Href="blocks" StartIcon="@Icons.Material.Filled.ViewModule">
+                        @Loc["ButtonSchedulingBlocks"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Href="templates" StartIcon="@Icons.Material.Filled.DashboardCustomize">
+                        @Loc["ButtonSchedulingTemplates"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Href="decos" StartIcon="@Icons.Material.Filled.AutoFixHigh">
+                        @Loc["ButtonSchedulingDecos"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Href="deco-templates" StartIcon="@Icons.Material.Filled.Style">
+                        @Loc["ButtonSchedulingDecoTemplates"]
+                    </MudButton>
+                </MudStack>
+
+                <MudText Typo="Typo.h6" Class="mb-3">@Loc["ButtonAppearance"]</MudText>
+                <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2" Class="mb-6">
+                    <MudButton Variant="Variant.Outlined" Href="overlays" StartIcon="@Icons.Material.Filled.Layers">
+                        @Loc["ButtonOverlays"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Href="watermarks" StartIcon="@Icons.Material.Filled.BrandingWatermark">
+                        @Loc["ButtonWatermarks"]
+                    </MudButton>
+                </MudStack>
+
+                <MudText Typo="Typo.h6" Class="mb-3">@Loc["ButtonEncoding"]</MudText>
+                <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2">
+                    <MudButton Variant="Variant.Outlined" Href="ffmpeg" StartIcon="@Icons.Material.Filled.VideoSettings">
+                        @Loc["ButtonFFmpegProfiles"]
+                    </MudButton>
+                </MudStack>
+            </PageSurface>
+        </MudContainer>
+    </div>
+</MudForm>

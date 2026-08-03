@@ -1,4 +1,4 @@
-﻿@page "/media/filler/presets/{Id:int}/edit"
+@page "/media/filler/presets/{Id:int}/edit"
 @page "/media/filler/presets/add"
 @using ErsatzTV.Application.Artists
 @using ErsatzTV.Application.Filler
@@ -15,13 +15,12 @@
 @inject IMediator Mediator
 
 <MudForm Model="@_model" @ref="@_form" Validation="@(_validator.ValidateValue)" ValidationDelay="0" Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" OnClick="@HandleSubmitAsync" StartIcon="@(IsEdit ? Icons.Material.Filled.Save : Icons.Material.Filled.Add)">@(IsEdit ? "Save Filler Preset" : "Add Filler Preset")</MudButton>
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@HandleSubmitAsync" StartIcon="@(IsEdit ? Icons.Material.Filled.Save : Icons.Material.Filled.Add)">@(IsEdit ? "Save Filler Preset" : "Add Filler Preset")</MudButton>
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Filler Preset</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Filler Preset"/>
             <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                 <div class="d-flex">
                     <MudText>Name</MudText>

@@ -46,16 +46,22 @@ public class TemplateDataRepository(IFileSystem fileSystem, IDbContextFactory<Tv
 
                 for (var i = 0; i < count; i++)
                 {
+                    TimeSpan duration = TimeSpan.FromMinutes(18 + i * 3);
+                    DateTimeOffset start = topOfHour + i * TimeSpan.FromHours(1);
                     var data = new EpgProgrammeTemplateData
                     {
                         Title = $"Fake Epg Title {i}",
-                        SubTitle = $"Fake Epg SubTitle {i}",
+                        SubTitle = $"Fake Channel {i}",
                         Description = string.Empty,
                         Rating = string.Empty,
                         Categories = [],
                         Date = $"Fake Epg Date {i}",
-                        Start = topOfHour + i * TimeSpan.FromHours(1),
-                        Stop = topOfHour + (i + 1) * TimeSpan.FromHours(1),
+                        Start = start,
+                        Stop = start + duration,
+                        Icon = string.Empty,
+                        DurationSeconds = duration.TotalSeconds,
+                        DurationDisplay = FormatDuration(duration),
+                        TimeDisplay = start.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture)
                     };
 
                     result.Add(data);
@@ -83,7 +89,8 @@ public class TemplateDataRepository(IFileSystem fileSystem, IDbContextFactory<Tv
                         ["Description"] = epgProgramme.Description?.Value,
                         ["Rating"] = epgProgramme.Rating?.Value,
                         ["Categories"] = (epgProgramme.Categories ?? []).Map(c => c.Value).ToArray(),
-                        ["Date"] = epgProgramme.Date?.Value
+                        ["Date"] = epgProgramme.Date?.Value,
+                        ["Icon"] = ResolveEpgIconUrl(epgProgramme.Icon?.Src)
                     };
 
                     if (epgProgramme.OtherElements?.Length > 0)
@@ -95,14 +102,18 @@ public class TemplateDataRepository(IFileSystem fileSystem, IDbContextFactory<Tv
                         }
                     }
 
+                    DateTimeOffset? start = null;
+                    DateTimeOffset? stop = null;
+
                     if (DateTimeOffset.TryParseExact(
                             epgProgramme.Start,
                             EpgReader.XmlTvDateFormat,
                             CultureInfo.InvariantCulture,
                             DateTimeStyles.None,
-                            out DateTimeOffset start))
+                            out DateTimeOffset parsedStart))
                     {
-                        data["Start"] = start;
+                        start = parsedStart;
+                        data["Start"] = parsedStart;
                     }
 
                     if (DateTimeOffset.TryParseExact(
@@ -110,9 +121,31 @@ public class TemplateDataRepository(IFileSystem fileSystem, IDbContextFactory<Tv
                             EpgReader.XmlTvDateFormat,
                             CultureInfo.InvariantCulture,
                             DateTimeStyles.None,
-                            out DateTimeOffset stop))
+                            out DateTimeOffset parsedStop))
                     {
-                        data["Stop"] = stop;
+                        stop = parsedStop;
+                        data["Stop"] = parsedStop;
+                    }
+
+                    if (start is not null)
+                    {
+                        data["TimeDisplay"] = start.Value.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture);
+                    }
+                    else
+                    {
+                        data["TimeDisplay"] = string.Empty;
+                    }
+
+                    if (start is not null && stop is not null && stop > start)
+                    {
+                        TimeSpan duration = stop.Value - start.Value;
+                        data["DurationSeconds"] = duration.TotalSeconds;
+                        data["DurationDisplay"] = FormatDuration(duration);
+                    }
+                    else
+                    {
+                        data["DurationSeconds"] = 0d;
+                        data["DurationDisplay"] = string.Empty;
                     }
 
                     result.Add(data);
@@ -429,5 +462,39 @@ public class TemplateDataRepository(IFileSystem fileSystem, IDbContextFactory<Tv
         }
 
         return Option<Dictionary<string, object>>.None;
+    }
+
+    private static string ResolveEpgIconUrl(string src)
+    {
+        if (string.IsNullOrWhiteSpace(src))
+        {
+            return string.Empty;
+        }
+
+        if (src.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            src.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return src;
+        }
+
+        string baseUrl = !string.IsNullOrWhiteSpace(SystemEnvironment.BaseUrl)
+            ? SystemEnvironment.BaseUrl.TrimEnd('/')
+            : $"http://127.0.0.1:{SystemEnvironment.StreamingPort}";
+
+        return src
+            .Replace("{RequestBase}", baseUrl, StringComparison.Ordinal)
+            .Replace("{AccessTokenUri}", string.Empty, StringComparison.Ordinal);
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration < TimeSpan.Zero)
+        {
+            duration = TimeSpan.Zero;
+        }
+
+        return duration.TotalHours >= 1
+            ? $"{(int)duration.TotalHours}:{duration.Minutes:00}:{duration.Seconds:00}"
+            : $"{duration.Minutes}:{duration.Seconds:00}";
     }
 }

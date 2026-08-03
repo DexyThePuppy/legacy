@@ -8,7 +8,7 @@
 @inject NavigationManager NavigationManager
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
         <MudButton Class="ml-8"
                    StartIcon="@Icons.Material.Filled.ArrowBack"
                    Variant="Variant.Outlined"
@@ -32,8 +32,7 @@
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Import From YouTube</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Import From YouTube"/>
 
             <MudStack Row="true" Class="mb-6" AlignItems="AlignItems.Center">
                 <MudTextField @bind-Value="_input"
@@ -190,7 +189,7 @@
     private bool _showCustomIcon;
     private bool _autoSync = true;
     private int _syncIntervalHours = 24;
-    private bool _createStation;
+    private bool _createStation = true;
 
     public void Dispose()
     {
@@ -303,7 +302,14 @@
                             : $"Imported {result.Manifest.VideoCount} videos",
                         Severity.Success);
 
-                    NavigationManager.NavigateTo("media/sources/youtube");
+                    if (result.ChannelId is not null)
+                    {
+                        NavigationManager.NavigateTo($"channels/{result.ChannelId.Value}");
+                    }
+                    else
+                    {
+                        NavigationManager.NavigateTo("media/sources/youtube");
+                    }
                 },
                 error => Snackbar.Add($"Unable to import: {error.Value}", Severity.Error));
         }

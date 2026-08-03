@@ -1,4 +1,4 @@
-﻿@page "/decos/{Id:int}"
+@page "/decos/{Id:int}"
 @using ErsatzTV.Application.Graphics
 @using ErsatzTV.Application.MediaCollections
 @using ErsatzTV.Application.MediaItems
@@ -13,15 +13,14 @@
 @inject IMediator Mediator
 
 <MudForm Style="max-height: 100%">
-<MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
+<MudPaper Class="page-toolbar" Elevation="0" Square="true">
     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(_ => SaveChanges())" Class="ml-6" StartIcon="@Icons.Material.Filled.Save">
         Save Changes
     </MudButton>
 </MudPaper>
 <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-<MudText Typo="Typo.h5" Class="mb-2">Deco</MudText>
-<MudDivider Class="mb-6"/>
+<PageHeader Title="Deco"/>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Deco Group Name</MudText>
@@ -34,8 +33,7 @@
     </div>
     <MudTextField @bind-Value="_deco.Name" For="@(() => _deco.Name)"/>
 </MudStack>
-<MudText Typo="Typo.h5" Class="mt-10 mb-2">Watermark</MudText>
-<MudDivider Class="mb-6"/>
+<PageHeader Title="Watermark" Class="mt-10"/>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Watermark Mode</MudText>
@@ -72,8 +70,7 @@
                  @bind-Value="_deco.UseWatermarkDuringFiller"
                  Dense="true"/>
 </MudStack>
-<MudText Typo="Typo.h5" Class="mt-10 mb-2">Graphics Elements</MudText>
-<MudDivider Class="mb-6"/>
+<PageHeader Title="Graphics Elements" Class="mt-10"/>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
         <MudText>Graphics Elements Mode</MudText>
@@ -110,8 +107,7 @@
                  @bind-Value="_deco.UseGraphicsElementsDuringFiller"
                  Dense="true"/>
 </MudStack>
-<MudText Typo="Typo.h5" Class="mt-10 mb-2">Break Content</MudText>
-<MudDivider Class="mb-6"/>
+<PageHeader Title="Break Content" Class="mt-10"/>
 <MudText Typo="Typo.body2" Class="mb-6">Break content can be used to play specific items (using playlists), and to pad blocks to their full configured duration.</MudText>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
@@ -131,8 +127,7 @@
             Add Break Content
         </MudButton>
     </MudStack>
-    <MudText Typo="Typo.h5" Class="mt-10 mb-2">Break Content Items</MudText>
-    <MudDivider Class="mb-6"/>
+    <PageHeader Title="Break Content Items" Class="mt-10"/>
     <MudTable T="DecoBreakContentEditViewModel" Class="mt-6" Hover="true" Items="_deco.BreakContent" Dense="true" SelectedItemChanged="@(vm => SelectedBreakContentChanged(vm))" RowClassFunc="@SelectedRowClassFunc">
         <ColGroup>
             <MudHidden Breakpoint="Breakpoint.Xs">
@@ -174,8 +169,7 @@
     </MudTable>
     @if (_selectedBreakContent is not null)
     {
-        <MudText Typo="Typo.h5" Class="mt-10 mb-2">Break Content Item</MudText>
-        <MudDivider Class="mb-6"/>
+        <PageHeader Title="Break Content Item" Class="mt-10"/>
         <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
             <div class="d-flex">
                 <MudText>Placement</MudText>
@@ -328,8 +322,7 @@
         }
     }
 }
-<MudText Typo="Typo.h5" Class="mt-10 mb-2">Default Filler</MudText>
-<MudDivider Class="mb-6"/>
+<PageHeader Title="Default Filler" Class="mt-10"/>
 <MudText Typo="Typo.body2" Class="mb-6">After all blocks have been scheduled, a second pass will be made to fill unscheduled time using random items from this collection.</MudText>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
     <div class="d-flex">
@@ -482,8 +475,7 @@
                  Color="Color.Primary"
                  Dense="true"/>
 </MudStack>
-<MudText Typo="Typo.h5" Class="mt-10 mb-2">Dead Air Fallback</MudText>
-<MudDivider Class="mb-6"/>
+<PageHeader Title="Dead Air Fallback" Class="mt-10"/>
 <MudText Typo="Typo.body2">When no playout item is found for the current time, *one* item will be randomly selected from this collection and looped and trimmed to exactly fit until the start of the next playout item.</MudText>
 <MudText Typo="Typo.body2" Class="mb-6 mt-3">This replaces the "Channel is Offline" image that would otherwise display.</MudText>
 <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">

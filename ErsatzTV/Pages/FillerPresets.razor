@@ -1,4 +1,4 @@
-﻿@page "/media/filler/presets"
+@page "/media/filler/presets"
 @using ErsatzTV.Application.Configuration
 @using ErsatzTV.Application.Filler
 @using ErsatzTV.Core.Domain.Filler
@@ -7,15 +7,14 @@
 @inject IMediator Mediator
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" StartIcon="@Icons.Material.Filled.Add" Href="media/filler/presets/add">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="media/filler/presets/add">
             Add Filler Preset
         </MudButton>
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Filler Presets</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Filler Presets"/>
             <MudTable Hover="true"
                       @bind-RowsPerPage="@_fillerPresetsRowsPerPage"
                       ServerData="@(new Func<TableState, CancellationToken, Task<TableData<FillerPresetViewModel>>>(ServerReloadFillerPresets))"

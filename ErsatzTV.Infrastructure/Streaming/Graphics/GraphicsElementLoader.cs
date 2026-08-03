@@ -1,6 +1,7 @@
 using System.IO.Abstractions;
 using System.Text;
 using System.Text.RegularExpressions;
+using ErsatzTV.Core;
 using ErsatzTV.Core.Domain;
 using ErsatzTV.Core.Graphics;
 using ErsatzTV.Core.Interfaces.Repositories;
@@ -285,6 +286,7 @@ public partial class GraphicsElementLoader(
             [FFmpegProfileTemplateDataKey.ScaledResolution] = context.SquarePixelFrameSize,
             [FFmpegProfileTemplateDataKey.RFrameRate] = context.FrameRate.RFrameRate,
             [FFmpegProfileTemplateDataKey.FrameRate] = context.FrameRate.ParsedFrameRate,
+            [FFmpegProfileTemplateDataKey.RequestBase] = ResolveRequestBase(),
             [ChannelTemplateDataKey.ChannelStartTime] = context.ChannelStartTime,
             [ChannelTemplateDataKey.Number] = context.ChannelNumber,
             [MediaItemTemplateDataKey.StreamSeek] = context.Seek,
@@ -437,6 +439,16 @@ public partial class GraphicsElementLoader(
         {
             return Option<T>.None;
         }
+    }
+
+    private static string ResolveRequestBase()
+    {
+        if (!string.IsNullOrWhiteSpace(SystemEnvironment.BaseUrl))
+        {
+            return SystemEnvironment.BaseUrl.TrimEnd('/');
+        }
+
+        return $"http://127.0.0.1:{SystemEnvironment.UiPort}";
     }
 
     [GeneratedRegex(@"epg_entries:\s*(\d+)")]

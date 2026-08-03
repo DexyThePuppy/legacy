@@ -1,4 +1,4 @@
-﻿@using ErsatzTV.Application.MediaCollections
+@using ErsatzTV.Application.MediaCollections
 @using Microsoft.Extensions.Caching.Memory
 @implements IDisposable
 @inject IMediator Mediator
@@ -29,7 +29,7 @@
         </EditForm>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel" ButtonType="ButtonType.Reset">Cancel</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" ButtonType="ButtonType.Reset">Cancel</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">
             Add To Collection
         </MudButton>

@@ -7,8 +7,8 @@
 @inject ISnackbar Snackbar
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" StartIcon="@Icons.Material.Filled.Add" Href="overlays/add">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="overlays/add">
             Add Overlay
         </MudButton>
         <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Class="ml-4" StartIcon="@Icons.Material.Filled.Refresh" OnClick="@(_ => RefreshOverlaysAsync())">
@@ -20,15 +20,9 @@
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Overlays</MudText>
-            <MudText Typo="Typo.body2" Class="mb-2">
-                Overlays are live HTML templates that are rendered over channel content.
-                They support template variables like <code>MediaItem_Title</code>, <code>Next_Title</code> and <code>Next_StartsInSeconds</code>,
-                and triggers like <code>start_seconds_from_end</code> to show upcoming video info near the end of an item.
-                Channels can use multiple overlays at the same time.
-            </MudText>
-            <MudDivider Class="mb-6"/>
-            <MudTable Hover="true" Items="_overlays">
+            <PageHeader Title="Overlays"
+                        Subtitle="Live HTML templates rendered over channel content. Support template variables like MediaItem_Title, Next_Title, Next_StartsInSeconds, and triggers like start_seconds_from_end."/>
+            <MudTable Hover="true" Elevation="0" Items="_overlays">
                 <ColGroup>
                     <MudHidden Breakpoint="Breakpoint.Xs">
                         <col/>
@@ -51,6 +45,14 @@
                     <MudTd DataLabel="File">@context.FileName</MudTd>
                     <MudTd>
                         <div style="align-items: center; display: flex;">
+                            @if (context.Kind == GraphicsElementKind.Html)
+                            {
+                                <MudTooltip Text="Test Overlay">
+                                    <MudIconButton Icon="@Icons.Material.Filled.PlayCircle"
+                                                   Href="@($"overlays/{context.Id}/test")">
+                                    </MudIconButton>
+                                </MudTooltip>
+                            }
                             <MudTooltip Text="Edit Overlay">
                                 <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                                Href="@($"overlays/{context.Id}/edit")">

@@ -1,4 +1,4 @@
-﻿@page "/playouts/block/{Id:int}"
+@page "/playouts/block/{Id:int}"
 @using ErsatzTV.Application.Channels
 @using ErsatzTV.Application.Scheduling
 @implements IDisposable
@@ -9,15 +9,14 @@
 @inject ILogger<BlockPlayoutEditor> Logger
 
 <MudForm Style="max-height: 100%">
-    <MudPaper Square="true" Style="display: flex; height: 64px; min-height: 64px; width: 100%; z-index: 100; align-items: center">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-6" OnClick="@(_ => SaveDefaultDeco())" StartIcon="@Icons.Material.Filled.Save">
+    <MudPaper Class="page-toolbar" Elevation="0" Square="true">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(_ => SaveDefaultDeco())" StartIcon="@Icons.Material.Filled.Save">
             Save Default Deco
         </MudButton>
     </MudPaper>
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">@_channelName - Block Playout</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="@($"{_channelName} - Block Playout")"/>
             <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                 <div class="d-flex">
                     <MudText>Playout Templates</MudText>
@@ -26,8 +25,7 @@
                     Edit Templates
                 </MudButton>
             </MudStack>
-            <MudText Typo="Typo.h5" Class="mt-10 mb-2">Default Deco</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Default Deco" Class="mt-10"/>
             <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                 <div class="d-flex">
                     <MudText>Enable Default Deco</MudText>
@@ -63,8 +61,7 @@
                     </MudSelect>
                 </MudStack>
             }
-            <MudText Typo="Typo.h5" Class="mt-10 mb-2">Maintenance</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Maintenance" Class="mt-10"/>
             <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                 <div class="d-flex">
                     <MudText>Playout Items and History</MudText>

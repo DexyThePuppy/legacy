@@ -10,4 +10,8 @@ public class EpgProgrammeTemplateData
     public string Rating { get; set; }
     public string[] Categories { get; set; }
     public string Date { get; set; }
+    public string Icon { get; set; }
+    public double DurationSeconds { get; set; }
+    public string DurationDisplay { get; set; }
+    public string TimeDisplay { get; set; }
 }

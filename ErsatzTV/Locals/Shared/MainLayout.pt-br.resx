@@ -11,8 +11,32 @@
     <resheader name="writer">
         <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
     </resheader>
+    <data name="ButtonHome" xml:space="preserve">
+        <value>Início</value>
+    </data>
     <data name="ButtonChannels" xml:space="preserve">
         <value>Canais</value>
+    </data>
+    <data name="ButtonLibrary" xml:space="preserve">
+        <value>Biblioteca</value>
+    </data>
+    <data name="ButtonLibraryHub" xml:space="preserve">
+        <value>Biblioteca</value>
+    </data>
+    <data name="ButtonAdvanced" xml:space="preserve">
+        <value>Avançado</value>
+    </data>
+    <data name="ButtonAppearance" xml:space="preserve">
+        <value>Aparência</value>
+    </data>
+    <data name="ButtonEncoding" xml:space="preserve">
+        <value>Codificação</value>
+    </data>
+    <data name="ButtonMediaMusicVideos" xml:space="preserve">
+        <value>Videoclipes</value>
+    </data>
+    <data name="ButtonMediaMissing" xml:space="preserve">
+        <value>Mídia ausente</value>
     </data>
     <data name="ButtonFFmpegProfiles" xml:space="preserve">
         <value>Perfis FFmpeg</value>

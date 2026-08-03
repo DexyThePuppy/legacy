@@ -1,0 +1,825 @@
+name: Video Index
+html: |
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <style>
+      {{~ base = RequestBase ~}}
+      {{~ if !base || base == "" ~}}{{~ base = "http://127.0.0.1:8409" ~}}{{~ end ~}}
+      @import url("{{ base }}/_content/MudBlazor/MudBlazor.min.css");
+      @import url("{{ base }}/lib/roboto/roboto.css");
+      @import url("{{ base }}/css/site.css");
+
+      :root, body.ersatztv-dark, .ersatztv-dark {
+        --fanart-background-rgb: 16, 20, 16;
+        --surface-container: #1f2823;
+        --surface-container-high: #29332c;
+        --surface-container-highest: #343f37;
+        --outline-variant: rgba(198, 208, 198, 0.18);
+        --primary-container: #0f5c1f;
+        --on-primary-container: #b7f2b8;
+        --shape-xs: 8px;
+        --shape-sm: 12px;
+        --shape-md: 16px;
+        --shape-lg: 24px;
+        --shape-pill: 999px;
+        --motion-fast: 160ms;
+        --motion-medium: 280ms;
+        --motion-emphasized: cubic-bezier(0.2, 0, 0, 1);
+        --mud-palette-black: #000000;
+        --mud-palette-white: #ffffff;
+        --mud-palette-primary: #7DDA7F;
+        --mud-palette-primary-text: #003910;
+        --mud-palette-primary-darken: #5fc462;
+        --mud-palette-primary-lighten: #9ae59b;
+        --mud-palette-primary-hover: rgba(125, 218, 127, 0.12);
+        --mud-palette-primary-rgb: 125, 218, 127;
+        --mud-palette-secondary: #4DD0C8;
+        --mud-palette-secondary-text: #003732;
+        --mud-palette-secondary-darken: #2bb8b0;
+        --mud-palette-secondary-lighten: #7adcd6;
+        --mud-palette-secondary-hover: rgba(77, 208, 200, 0.12);
+        --mud-palette-secondary-rgb: 77, 208, 200;
+        --mud-palette-tertiary: #A8D48A;
+        --mud-palette-tertiary-text: #163800;
+        --mud-palette-tertiary-darken: #8cbe6c;
+        --mud-palette-tertiary-lighten: #c2e4ae;
+        --mud-palette-tertiary-hover: rgba(168, 212, 138, 0.12);
+        --mud-palette-tertiary-rgb: 168, 212, 138;
+        --mud-palette-info: #5EC8D0;
+        --mud-palette-info-text: #003732;
+        --mud-palette-info-darken: #3aadb6;
+        --mud-palette-info-lighten: #86d8de;
+        --mud-palette-info-hover: rgba(94, 200, 208, 0.12);
+        --mud-palette-info-rgb: 94, 200, 208;
+        --mud-palette-success: #7DDA7F;
+        --mud-palette-success-text: #003910;
+        --mud-palette-success-darken: #5fc462;
+        --mud-palette-success-lighten: #9ae59b;
+        --mud-palette-success-hover: rgba(125, 218, 127, 0.12);
+        --mud-palette-success-rgb: 125, 218, 127;
+        --mud-palette-warning: #F0B060;
+        --mud-palette-warning-text: #3d2800;
+        --mud-palette-warning-darken: #d9963d;
+        --mud-palette-warning-lighten: #f5c584;
+        --mud-palette-warning-hover: rgba(240, 176, 96, 0.12);
+        --mud-palette-warning-rgb: 240, 176, 96;
+        --mud-palette-error: #FFB4AB;
+        --mud-palette-error-text: #690005;
+        --mud-palette-error-darken: #ff897d;
+        --mud-palette-error-lighten: #ffdad6;
+        --mud-palette-error-hover: rgba(255, 180, 171, 0.12);
+        --mud-palette-error-rgb: 255, 180, 171;
+        --mud-palette-dark: #101410;
+        --mud-palette-dark-text: rgba(230, 236, 230, 0.95);
+        --mud-palette-dark-darken: #0a0d0a;
+        --mud-palette-dark-lighten: #1a211c;
+        --mud-palette-dark-hover: rgba(16, 20, 16, 0.12);
+        --mud-palette-dark-rgb: 16, 20, 16;
+        --mud-palette-background: #101410;
+        --mud-palette-background-gray: #1A211C;
+        --mud-palette-surface: #1A211C;
+        --mud-palette-appbar-background: #101410;
+        --mud-palette-appbar-text: rgba(230, 236, 230, 0.92);
+        --mud-palette-drawer-background: #141A16;
+        --mud-palette-drawer-text: rgba(230, 236, 230, 0.92);
+        --mud-palette-drawer-icon: rgba(230, 236, 230, 0.80);
+        --mud-palette-text-primary: rgba(230, 236, 230, 0.95);
+        --mud-palette-text-primary-rgb: 230, 236, 230;
+        --mud-palette-text-secondary: rgba(198, 208, 198, 0.78);
+        --mud-palette-text-disabled: rgba(198, 208, 198, 0.38);
+        --mud-palette-action-default: rgba(230, 236, 230, 0.80);
+        --mud-palette-action-disabled: rgba(198, 208, 198, 0.38);
+        --mud-palette-action-disabled-background: rgba(230, 236, 230, 0.12);
+        --mud-palette-divider: rgba(198, 208, 198, 0.16);
+        --mud-palette-divider-light: rgba(198, 208, 198, 0.08);
+        --mud-palette-table-lines: rgba(198, 208, 198, 0.12);
+        --mud-palette-table-striped: rgba(125, 218, 127, 0.04);
+        --mud-palette-table-hover: rgba(125, 218, 127, 0.10);
+        --mud-palette-lines-default: rgba(198, 208, 198, 0.14);
+        --mud-palette-lines-inputs: rgba(198, 208, 198, 0.28);
+        --mud-palette-overlay-dark: rgba(16, 20, 16, 0.55);
+        --mud-palette-overlay-light: rgba(230, 236, 230, 0.08);
+        --mud-default-borderradius: 16px;
+        --mud-typography-default-family: "Roboto", "Helvetica", "Arial", sans-serif;
+        --mud-typography-default-size: .9375rem;
+        --mud-typography-default-weight: 400;
+        --mud-typography-default-lineheight: 1.5;
+        --mud-typography-default-letterspacing: .01em;
+        --mud-typography-body1-family: "Roboto", "Helvetica", "Arial", sans-serif;
+        --mud-typography-body1-size: .9375rem;
+        --mud-typography-body1-weight: 400;
+        --mud-typography-body1-lineheight: 1.55;
+        --mud-typography-body1-letterspacing: .01em;
+        --mud-typography-body1-text-transform: none;
+        --mud-typography-body2-family: "Roboto", "Helvetica", "Arial", sans-serif;
+        --mud-typography-body2-size: .8125rem;
+        --mud-typography-body2-weight: 400;
+        --mud-typography-body2-lineheight: 1.5;
+        --mud-typography-body2-letterspacing: .01em;
+        --mud-typography-body2-text-transform: none;
+        --mud-typography-caption-family: "Roboto", "Helvetica", "Arial", sans-serif;
+        --mud-typography-caption-size: .75rem;
+        --mud-typography-caption-weight: 500;
+        --mud-typography-caption-lineheight: 1.35;
+        --mud-typography-caption-letterspacing: .02em;
+        --mud-typography-caption-text-transform: none;
+        --mud-typography-overline-family: "Roboto", "Helvetica", "Arial", sans-serif;
+        --mud-typography-overline-size: .6875rem;
+        --mud-typography-overline-weight: 600;
+        --mud-typography-overline-lineheight: 1.4;
+        --mud-typography-overline-letterspacing: .06em;
+        --mud-typography-overline-text-transform: uppercase;
+        --mud-typography-h3-family: "Roboto", "Helvetica", "Arial", sans-serif;
+        --mud-typography-h3-size: 2rem;
+        --mud-typography-h3-weight: 600;
+        --mud-typography-h3-lineheight: 1.25;
+        --mud-typography-h3-letterspacing: -.01em;
+        --mud-typography-h3-text-transform: none;
+        --mud-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.18), 0 1px 3px 1px rgba(0, 0, 0, 0.10);
+        --mud-elevation-2: 0 1px 2px rgba(0, 0, 0, 0.20), 0 2px 6px 2px rgba(0, 0, 0, 0.12);
+        --mud-elevation-4: 0 2px 3px rgba(0, 0, 0, 0.22), 0 6px 10px 4px rgba(0, 0, 0, 0.12);
+      }
+
+      html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent !important;
+        overflow: hidden;
+        font-family: var(--mud-typography-default-family);
+        color: var(--mud-palette-text-primary);
+        -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
+      }
+
+      .video-index {
+        --video-index-motion: 480ms cubic-bezier(0.2, 0, 0, 1);
+        --video-index-stagger: 50ms; /* one step between items */
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: 0.35rem 0.4rem 0.85rem;
+        box-sizing: border-box;
+        overflow: hidden;
+        background:
+          linear-gradient(180deg, rgba(16, 20, 16, 0) 0%, rgba(16, 20, 16, 0.72) 34%, rgba(16, 20, 16, 0.94) 100%),
+          radial-gradient(900px 220px at 12% 100%, rgba(125, 218, 127, 0.10), transparent 55%),
+          radial-gradient(700px 180px at 88% 100%, rgba(77, 208, 200, 0.07), transparent 50%);
+      }
+
+      .video-index.is-hidden {
+        pointer-events: none;
+      }
+
+      .video-index__heading {
+        margin: 0 0 0.35rem;
+        color: var(--mud-palette-text-secondary);
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+        transition:
+          opacity var(--video-index-motion),
+          transform var(--video-index-motion);
+        transition-delay: 0s;
+      }
+
+      .video-index.is-hidden .video-index__heading {
+        opacity: 0;
+        transform: translate3d(0, 22px, 0);
+      }
+
+      .video-index.is-visibility-animating .video-index__heading {
+        transition-delay: calc(var(--vi-stagger, 0) * var(--video-index-stagger));
+      }
+
+      .video-index .media-card-grid {
+        --video-index-gap: 0.65rem;
+        --video-index-now-boost: 1.2;
+        /* 1 now + 4 normal cards fit the viewport. */
+        --video-index-slot: calc((100cqi - (4 * var(--video-index-gap))) / (4 + var(--video-index-now-boost)));
+        --video-index-now-slot: calc(var(--video-index-slot) * var(--video-index-now-boost));
+        container-type: inline-size;
+        width: 100%;
+        overflow: hidden;
+        padding: 0.85rem 0.55rem 0.35rem;
+        box-sizing: border-box;
+      }
+
+      .video-index .media-card-track {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: flex-end;
+        gap: var(--video-index-gap);
+        width: max-content;
+        will-change: transform;
+        transform: translate3d(0, 0, 0);
+      }
+
+      .video-index .media-card-container {
+        flex: 0 0 var(--video-index-slot);
+        width: var(--video-index-slot);
+        min-width: var(--video-index-slot);
+        max-width: var(--video-index-slot);
+        padding-bottom: 0.15rem;
+        margin-right: 0;
+        box-sizing: border-box;
+        position: relative;
+        z-index: 1;
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+        transition:
+          flex-basis var(--video-index-motion),
+          width var(--video-index-motion),
+          min-width var(--video-index-motion),
+          max-width var(--video-index-motion),
+          opacity var(--video-index-motion),
+          transform var(--video-index-motion);
+        transition-delay: 0s;
+      }
+
+      .video-index.is-hidden .media-card-container {
+        opacity: 0;
+        transform: translate3d(0, 28px, 0);
+      }
+
+      .video-index.is-visibility-animating .media-card-container {
+        transition-delay: calc(var(--vi-stagger, 0) * var(--video-index-stagger));
+      }
+
+      .video-index.is-visibility-animating .media-card-grid {
+        overflow: visible;
+      }
+
+      .video-index .media-card-container.is-now {
+        z-index: 3;
+        flex-basis: var(--video-index-now-slot);
+        width: var(--video-index-now-slot);
+        min-width: var(--video-index-now-slot);
+        max-width: var(--video-index-now-slot);
+      }
+
+      .video-index .media-card-frame {
+        width: 100%;
+        border-radius: var(--shape-md);
+        box-shadow: 0 0 0 0 transparent, 0 0 0 transparent;
+        transition: box-shadow var(--video-index-motion);
+      }
+
+      .video-index .media-card-frame.media-card-selected {
+        box-shadow: 0 0 0 3px var(--mud-palette-primary), 0 8px 20px rgba(0, 0, 0, 0.28);
+      }
+
+      .video-index .mud-paper.media-card {
+        width: 100% !important;
+        height: auto !important;
+        min-height: 140px;
+        aspect-ratio: 16 / 9;
+        justify-content: center;
+        color: var(--mud-palette-text-primary);
+        background:
+          linear-gradient(145deg, var(--surface-container-high), var(--surface-container) 55%, var(--mud-palette-surface)) !important;
+        border: 1px solid var(--outline-variant);
+        border-radius: var(--shape-md) !important;
+        transition: border-color 480ms cubic-bezier(0.2, 0, 0, 1);
+      }
+
+      .video-index .media-card-frame.media-card-selected .mud-paper.media-card {
+        border-color: transparent;
+      }
+
+      .video-index .media-card img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
+        display: block;
+      }
+
+      .video-index .media-card-poster-placeholder {
+        margin: auto;
+        padding: 0.5rem;
+      }
+
+      .video-index .media-card-title {
+        margin: 0.4rem 0 0;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 600;
+        line-height: 1.25;
+        color: var(--mud-palette-text-primary);
+      }
+
+      .video-index .media-card-title.mud-typography-body2,
+      .video-index .media-card-title.mud-text-secondary {
+        margin: 0.15rem 0 0;
+        font-weight: 500;
+        line-height: 1.25;
+        color: var(--mud-palette-text-secondary);
+      }
+
+      .video-index .media-card-container.is-now .media-card-title.mud-typography-body1 {
+        font-size: 1.08rem;
+        letter-spacing: -0.01em;
+      }
+
+      .video-index-badge {
+        position: absolute;
+        left: 0.35rem;
+        top: 0.35rem;
+        z-index: 2;
+        margin: 0 !important;
+        border-radius: var(--shape-pill) !important;
+        display: inline-flex !important;
+        align-items: center;
+        height: 24px;
+        padding: 0 0.55rem;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        opacity: 1;
+        transform: scale(1);
+        transform-origin: left top;
+        transition:
+          opacity 420ms cubic-bezier(0.2, 0, 0, 1),
+          transform 420ms cubic-bezier(0.2, 0, 0, 1),
+          background-color 420ms cubic-bezier(0.2, 0, 0, 1),
+          color 420ms cubic-bezier(0.2, 0, 0, 1);
+      }
+
+      .video-index-badge.is-enter,
+      .video-index-badge.is-leaving {
+        opacity: 0;
+        transform: scale(0.86);
+      }
+
+      .video-index-badge.mud-chip-color-primary {
+        background: var(--mud-palette-primary) !important;
+        color: var(--mud-palette-primary-text) !important;
+      }
+
+      .video-index-badge.mud-chip-color-secondary {
+        background: var(--mud-palette-secondary) !important;
+        color: var(--mud-palette-secondary-text) !important;
+      }
+
+      .video-index-duration {
+        position: absolute;
+        right: 0.35rem;
+        bottom: 0.35rem;
+        z-index: 2;
+        margin: 0 !important;
+        border-radius: var(--shape-xs) !important;
+        display: inline-flex !important;
+        align-items: center;
+        height: 22px;
+        padding: 0 0.4rem;
+        background: rgba(16, 20, 16, 0.92) !important;
+        color: var(--mud-palette-text-primary) !important;
+        font-size: 0.72rem;
+        font-weight: 600;
+      }
+
+      .video-index__empty {
+        color: var(--mud-palette-text-disabled);
+        margin: 0.5rem 0.1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ersatztv-dark video-index">
+      <p class="mud-typography mud-typography-overline video-index__heading">Now Playing</p>
+      <div class="media-card-grid">
+        <div class="media-card-track">
+          {{~ if Epg && Epg.size > 0 ~}}
+            {{~ for item in Epg ~}}
+              {{~ if for.index < 5 ~}}
+                <div class="media-card-container{{ if for.index == 0 }} is-now{{ end }}">
+                  <div class="media-card-frame{{ if for.index == 0 }} media-card-selected{{ end }}">
+                    <div class="mud-paper mud-elevation-1 media-card" style="position: relative; overflow: hidden;">
+                      {{~ if for.index == 0 ~}}
+                        <div class="mud-chip mud-chip-size-small mud-chip-filled mud-chip-color-primary video-index-badge">
+                          <span class="mud-chip-content">Now</span>
+                        </div>
+                      {{~ else if for.index == 1 ~}}
+                        <div class="mud-chip mud-chip-size-small mud-chip-filled mud-chip-color-secondary video-index-badge">
+                          <span class="mud-chip-content">Next</span>
+                        </div>
+                      {{~ end ~}}
+                      {{~ if item.Icon && item.Icon != "" ~}}
+                        <img src="{{ item.Icon }}" alt="" />
+                      {{~ else ~}}
+                        <p class="mud-typography mud-typography-h3 mud-typography-align-center media-card-poster-placeholder mud-text-primary">#</p>
+                      {{~ end ~}}
+                      {{~ if item.DurationDisplay && item.DurationDisplay != "" ~}}
+                        <div class="mud-chip mud-chip-size-small mud-chip-filled video-index-duration">
+                          <span class="mud-chip-content">{{ item.DurationDisplay }}</span>
+                        </div>
+                      {{~ end ~}}
+                    </div>
+                  </div>
+                  <p class="mud-typography mud-typography-body1 media-card-title" title="{{ item.Title }}">{{ item.Title }}</p>
+                  {{~ if item.SubTitle && item.SubTitle != "" ~}}
+                    <p class="mud-typography mud-typography-body2 media-card-title mud-text-secondary">{{ item.SubTitle }}</p>
+                  {{~ else if Channel_Number ~}}
+                    <p class="mud-typography mud-typography-body2 media-card-title mud-text-secondary">Channel {{ Channel_Number }}</p>
+                  {{~ end ~}}
+                </div>
+              {{~ end ~}}
+            {{~ end ~}}
+          {{~ else ~}}
+            <p class="mud-typography mud-typography-body1 video-index__empty">No videos in index</p>
+          {{~ end ~}}
+        </div>
+      </div>
+    </div>
+    <script>
+      (() => {
+        const root = document.querySelector('.video-index');
+        const grid = root && root.querySelector('.media-card-grid');
+        const track = grid && grid.querySelector('.media-card-track');
+        if (!root || !grid || !track) return;
+
+        const reduceMotion = () =>
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        let busy = false;
+        let advanceTimer = null;
+        const VISIBLE = 5;
+        const NOW_BOOST = 1.2;
+        const EASE = 'cubic-bezier(0.2, 0, 0, 1)';
+        const MS = 480;
+        const BADGE_MS = 420;
+
+        function esc(value) {
+          return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        }
+
+        function createCard(item) {
+          const title = esc(item && item.title);
+          const subTitle = esc(item && item.subTitle);
+          const duration = esc(item && item.durationDisplay);
+          const icon = item && item.icon ? String(item.icon) : '';
+          const el = document.createElement('div');
+          el.className = 'media-card-container';
+          el.innerHTML =
+            '<div class="media-card-frame">' +
+              '<div class="mud-paper mud-elevation-1 media-card" style="position: relative; overflow: hidden;">' +
+                (icon
+                  ? '<img src="' + esc(icon) + '" alt="" />'
+                  : '<p class="mud-typography mud-typography-h3 mud-typography-align-center media-card-poster-placeholder mud-text-primary">#</p>') +
+                (duration
+                  ? '<div class="mud-chip mud-chip-size-small mud-chip-filled video-index-duration"><span class="mud-chip-content">' +
+                      duration +
+                    '</span></div>'
+                  : '') +
+              '</div>' +
+            '</div>' +
+            '<p class="mud-typography mud-typography-body1 media-card-title" title="' + title + '">' + title + '</p>' +
+            (subTitle
+              ? '<p class="mud-typography mud-typography-body2 media-card-title mud-text-secondary">' + subTitle + '</p>'
+              : '');
+          return el;
+        }
+
+        function applyBadgeRole(badge, role) {
+          badge.dataset.role = role;
+          badge.classList.toggle('mud-chip-color-primary', role === 'now');
+          badge.classList.toggle('mud-chip-color-secondary', role === 'next');
+          const label = badge.querySelector('.mud-chip-content');
+          if (label) label.textContent = role === 'now' ? 'Now' : 'Next';
+        }
+
+        function makeBadge(role) {
+          const badge = document.createElement('div');
+          badge.className = 'mud-chip mud-chip-size-small mud-chip-filled video-index-badge';
+          badge.innerHTML = '<span class="mud-chip-content"></span>';
+          applyBadgeRole(badge, role);
+          return badge;
+        }
+
+        function syncChrome(nowIndex, animate) {
+          if (nowIndex == null || nowIndex < 0) nowIndex = 0;
+          const cards = Array.from(track.querySelectorAll(':scope > .media-card-container'));
+          cards.forEach((card, index) => {
+            const role = index === nowIndex ? 'now' : index === nowIndex + 1 ? 'next' : null;
+            card.classList.toggle('is-now', role === 'now');
+            const frame = card.querySelector('.media-card-frame');
+            if (frame) {
+              frame.classList.toggle('media-card-selected', role === 'now');
+            }
+
+            const media = card.querySelector('.media-card');
+            if (!media) return;
+
+            let badge = media.querySelector('.video-index-badge:not(.is-leaving)');
+            const current = badge ? badge.dataset.role || null : null;
+
+            if (role && current === role) {
+              applyBadgeRole(badge, role);
+              badge.classList.remove('is-enter', 'is-leaving');
+              return;
+            }
+
+            if (!role && badge) {
+              if (!animate) {
+                badge.remove();
+                return;
+              }
+              badge.classList.add('is-leaving');
+              window.setTimeout(() => {
+                if (badge && badge.parentNode) badge.parentNode.removeChild(badge);
+              }, BADGE_MS);
+              return;
+            }
+
+            if (role && badge && current && current !== role) {
+              applyBadgeRole(badge, role);
+              badge.classList.remove('is-enter', 'is-leaving');
+              return;
+            }
+
+            if (role && !badge) {
+              badge = makeBadge(role);
+              media.insertBefore(badge, media.firstChild);
+              if (animate) {
+                badge.classList.add('is-enter');
+                void badge.offsetWidth;
+                requestAnimationFrame(() => {
+                  requestAnimationFrame(() => badge.classList.remove('is-enter'));
+                });
+              }
+            }
+          });
+        }
+
+        function gapPx() {
+          const raw = getComputedStyle(track).gap || getComputedStyle(grid).gap || '0';
+          const n = parseFloat(raw);
+          return Number.isFinite(n) ? n : 0;
+        }
+
+        function refreshSlotSize() {
+          const gap = gapPx();
+          const style = getComputedStyle(grid);
+          const padX =
+            (parseFloat(style.paddingLeft) || 0) +
+            (parseFloat(style.paddingRight) || 0);
+          const inner = Math.max(1, grid.clientWidth - padX);
+          const gaps = gap * (VISIBLE - 1);
+          const slot = Math.max(1, (inner - gaps) / (VISIBLE - 1 + NOW_BOOST));
+          const nowSlot = slot * NOW_BOOST;
+          grid.style.setProperty('--video-index-slot', slot + 'px');
+          grid.style.setProperty('--video-index-now-slot', nowSlot + 'px');
+          return { slot, nowSlot, gap };
+        }
+
+        function clearSizeLocks() {
+          track.querySelectorAll(':scope > .media-card-container').forEach((card) => {
+            card.style.transition = '';
+            card.style.flexBasis = '';
+            card.style.width = '';
+            card.style.minWidth = '';
+            card.style.maxWidth = '';
+          });
+        }
+
+        function lockWidth(card, px) {
+          card.style.transition = 'none';
+          card.style.flexBasis = px + 'px';
+          card.style.width = px + 'px';
+          card.style.minWidth = px + 'px';
+          card.style.maxWidth = px + 'px';
+        }
+
+        refreshSlotSize();
+        if (typeof ResizeObserver !== 'undefined') {
+          new ResizeObserver(() => {
+            if (!busy) refreshSlotSize();
+          }).observe(grid);
+        }
+
+        function trimToVisible(direction) {
+          if (direction === 'prev') {
+            while (track.querySelectorAll(':scope > .media-card-container').length > VISIBLE) {
+              track.removeChild(track.lastElementChild);
+            }
+          } else {
+            while (track.querySelectorAll(':scope > .media-card-container').length > VISIBLE) {
+              track.removeChild(track.firstElementChild);
+            }
+          }
+        }
+
+        function finish(direction) {
+          if (!busy) return;
+          track.style.transition = 'none';
+          track.style.transform = 'translate3d(0, 0, 0)';
+          trimToVisible(direction);
+          clearSizeLocks();
+          void track.offsetWidth;
+          root.classList.remove('is-sliding');
+          refreshSlotSize();
+          syncChrome(0, false);
+          busy = false;
+        }
+
+        function slide(direction, item) {
+          if (busy || !item) return;
+          const cards = Array.from(track.querySelectorAll(':scope > .media-card-container'));
+          if (cards.length < 1) return;
+
+          if (reduceMotion()) {
+            const card = createCard(item);
+            if (direction === 'prev') {
+              track.insertBefore(card, cards[0] || null);
+            } else {
+              track.appendChild(card);
+            }
+            trimToVisible(direction);
+            syncChrome(0, false);
+            return;
+          }
+
+          busy = true;
+          root.classList.add('is-sliding');
+          const sizes = refreshSlotSize();
+
+          let settled = false;
+          const settle = () => {
+            if (settled) return;
+            settled = true;
+            finish(direction);
+          };
+
+          if (direction === 'prev') {
+            const incoming = createCard(item);
+            track.insertBefore(incoming, cards[0] || null);
+            void incoming.offsetWidth;
+            syncChrome(0, true);
+            // Slide by the promoted Now width so we land flush, not short.
+            const delta = (incoming.getBoundingClientRect().width || sizes.nowSlot) + sizes.gap;
+            track.style.transition = 'none';
+            track.style.transform = 'translate3d(' + (-delta) + 'px, 0, 0)';
+            void track.offsetWidth;
+            track.style.transition = 'transform ' + MS + 'ms ' + EASE;
+            track.style.transform = 'translate3d(0, 0, 0)';
+          } else {
+            const outgoing = cards[0];
+            // Measure before Now moves off this card.
+            const outgoingWidth = outgoing.getBoundingClientRect().width || sizes.nowSlot;
+            const delta = outgoingWidth + sizes.gap;
+            track.appendChild(createCard(item));
+            // New Now grows with the slide; lock the exiting card so translate distance stays exact.
+            syncChrome(1, true);
+            lockWidth(outgoing, outgoingWidth);
+            track.style.transition = 'none';
+            track.style.transform = 'translate3d(0, 0, 0)';
+            void track.offsetWidth;
+            track.style.transition = 'transform ' + MS + 'ms ' + EASE;
+            track.style.transform = 'translate3d(' + (-delta) + 'px, 0, 0)';
+          }
+
+          const onEnd = (event) => {
+            if (event.target !== track || event.propertyName !== 'transform') return;
+            track.removeEventListener('transitionend', onEnd);
+            settle();
+          };
+          track.addEventListener('transitionend', onEnd);
+          window.setTimeout(settle, MS + 120);
+        }
+
+        function ack(source, type) {
+          try {
+            if (source && typeof source.postMessage === 'function') {
+              source.postMessage({ type: type }, '*');
+            }
+          } catch (e) { /* ignore */ }
+        }
+
+        function visibilityItems() {
+          const heading = root.querySelector('.video-index__heading');
+          const cards = Array.from(track.querySelectorAll(':scope > .media-card-container'));
+          return (heading ? [heading] : []).concat(cards);
+        }
+
+        function applyStagger() {
+          const items = visibilityItems();
+          items.forEach((el, index) => {
+            // Each item is offset by 1 stagger step (50ms).
+            el.style.setProperty('--vi-stagger', String(index));
+          });
+          return Math.max(0, items.length - 1);
+        }
+
+        function setVisible(visible, replay) {
+          const items = visibilityItems();
+          if (!items.length) {
+            root.classList.toggle('is-hidden', !visible);
+            return 0;
+          }
+
+          if (reduceMotion()) {
+            root.classList.toggle('is-hidden', !visible);
+            items.forEach((el) => el.style.removeProperty('--vi-stagger'));
+            return 0;
+          }
+
+          root.classList.add('is-visibility-animating');
+          const lastStep = applyStagger();
+          const totalMs = MS + lastStep * 50 + 80;
+
+          if (visible) {
+            if (replay || root.classList.contains('is-hidden')) {
+              root.classList.add('is-hidden');
+              void root.offsetWidth;
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => root.classList.remove('is-hidden'));
+              });
+            } else {
+              root.classList.remove('is-hidden');
+            }
+          } else {
+            root.classList.add('is-hidden');
+          }
+
+          window.setTimeout(() => {
+            root.classList.remove('is-visibility-animating');
+            items.forEach((el) => el.style.setProperty('--vi-stagger', '0'));
+          }, totalMs);
+
+          return totalMs;
+        }
+
+        function appearThenSlide(direction, item) {
+          if (busy || !item) return;
+          if (advanceTimer) {
+            window.clearTimeout(advanceTimer);
+            advanceTimer = null;
+          }
+          // Vertical slide up/down is show/hide only. Index changes slide
+          // horizontally; if currently hidden, appear once, then slide.
+          if (!root.classList.contains('is-hidden')) {
+            slide(direction, item);
+            return;
+          }
+          const waitMs = setVisible(true, false);
+          advanceTimer = window.setTimeout(() => {
+            advanceTimer = null;
+            slide(direction, item);
+          }, Math.max(0, waitMs));
+        }
+
+        window.addEventListener('message', (event) => {
+          const data = event && event.data;
+          if (!data || !data.type) return;
+
+          if (data.type === 'video-index-advance') {
+            appearThenSlide(data.direction === 'prev' ? 'prev' : 'next', data.item || null);
+            ack(event.source, 'video-index-slide-ack');
+            return;
+          }
+
+          if (data.type === 'video-index-slide') {
+            slide(data.direction === 'prev' ? 'prev' : 'next', data.item || null);
+            ack(event.source, 'video-index-slide-ack');
+            return;
+          }
+
+          if (data.type === 'video-index-visibility') {
+            setVisible(!!data.visible, !!data.replay);
+            ack(event.source, 'video-index-visibility-ack');
+          }
+        });
+
+        // Seed dataset.role on server-rendered badges so later morphs work.
+        track.querySelectorAll('.video-index-badge').forEach((badge) => {
+          const text = (badge.textContent || '').trim().toLowerCase();
+          badge.dataset.role = text === 'next' ? 'next' : 'now';
+        });
+        syncChrome(0, false);
+      })();
+    </script>
+  </body>
+  </html>
+location: BottomLeft
+horizontal_margin_percent: 0
+vertical_margin_percent: 0
+width_percent: 100
+height_percent: 46
+opacity_percent: 100
+z_index: 25
+capture_fps: 8
+epg_entries: 8
+start_seconds: 0
+duration_seconds: 20

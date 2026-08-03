@@ -1,0 +1,141 @@
+@page "/media"
+@using ErsatzTV.Application.Libraries
+@using ErsatzTV.Core.Interfaces.Metadata
+@implements IDisposable
+@inject IMediator Mediator
+@inject IEntityLocker Locker
+@inject IStringLocalizer<ErsatzTV.Locals.Shared.MainLayout> Loc
+
+<MudForm Style="max-height: 100%">
+    <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
+            <PageHeader Title="@Loc["ButtonLibrary"]"
+                        Subtitle="Sources, scan status, and browse shortcuts"/>
+            <PageSurface>
+                <MudText Typo="Typo.h6" Class="mb-3">Sources</MudText>
+                <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2" Class="mb-6">
+                    <MudButton Variant="Variant.Outlined" Href="media/sources/local" StartIcon="@Icons.Material.Filled.Folder">
+                        @Loc["ButtonMediaSourcesLocal"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Href="media/sources/plex" StartIcon="@Icons.Material.Filled.Dns">
+                        @Loc["ButtonMediaSourcesPlex"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Href="media/sources/jellyfin" StartIcon="@Icons.Material.Filled.Dns">
+                        @Loc["ButtonMediaSourcesJellyfin"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Href="media/sources/emby" StartIcon="@Icons.Material.Filled.Dns">
+                        @Loc["ButtonMediaSourcesEmby"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Href="media/sources/youtube" StartIcon="@Icons.Material.Filled.SmartDisplay">
+                        @Loc["ButtonMediaSourcesYouTube"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="media/libraries" StartIcon="@Icons.Material.Filled.LibraryBooks">
+                        @Loc["ButtonMediaLibraries"]
+                    </MudButton>
+                </MudStack>
+
+                <MudText Typo="Typo.h6" Class="mb-3">Browse</MudText>
+                <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2" Class="mb-6">
+                    <MudButton Variant="Variant.Text" Href="media/tv/shows" StartIcon="@Icons.Material.Filled.LiveTv">
+                        @Loc["ButtonMediaTvShows"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" Href="media/movies" StartIcon="@Icons.Material.Filled.Movie">
+                        @Loc["ButtonMediaMovies"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" Href="media/music/artists" StartIcon="@Icons.Material.Filled.Album">
+                        @Loc["ButtonMediaMusic"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" Href="media/music/videos" StartIcon="@Icons.Material.Filled.MusicVideo">
+                        @Loc["ButtonMediaMusicVideos"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" Href="media/other/videos" StartIcon="@Icons.Material.Filled.VideoFile">
+                        @Loc["ButtonMediaOtherVideos"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" Href="media/music/songs" StartIcon="@Icons.Material.Filled.AudioFile">
+                        @Loc["ButtonMediaSongs"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" Href="media/images" StartIcon="@Icons.Material.Filled.Image">
+                        @Loc["ButtonMediaImages"]
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" Href="media/remote/streams" StartIcon="@Icons.Material.Filled.Stream">
+                        @Loc["ButtonMediaRemoteStreams"]
+                    </MudButton>
+                </MudStack>
+
+                <MudText Typo="Typo.h6" Class="mb-3">Libraries</MudText>
+                @if (_libraries.Count == 0)
+                {
+                    <MudText Class="mb-6 mud-text-secondary">
+                        No libraries configured yet. Add a local folder or connect Plex, Jellyfin, Emby, or YouTube.
+                    </MudText>
+                }
+                else
+                {
+                    <MudTable Items="_libraries" Dense="true" Hover="true" Elevation="0" Class="mb-6">
+                        <HeaderContent>
+                            <MudTh>Kind</MudTh>
+                            <MudTh>Name</MudTh>
+                            <MudTh>Media</MudTh>
+                            <MudTh>Status</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.LibraryKind</MudTd>
+                            <MudTd>@context.Name</MudTd>
+                            <MudTd>@context.MediaKind</MudTd>
+                            <MudTd>
+                                @if (Locker.IsLibraryLocked(context.Id))
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Info">Scanning</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success">Ready</MudChip>
+                                }
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+
+                <MudText Typo="Typo.h6" Class="mb-3">Missing media</MudText>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Secondary"
+                           Href="media/trash"
+                           StartIcon="@Icons.Material.Filled.Delete">
+                    @Loc["ButtonMediaMissing"]
+                </MudButton>
+            </PageSurface>
+        </MudContainer>
+    </div>
+</MudForm>
+
+@code {
+    private CancellationTokenSource _cts;
+    private List<LibraryViewModel> _libraries = [];
+
+    public void Dispose()
+    {
+        Locker.OnLibraryChanged -= LockChanged;
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    protected override void OnInitialized() => Locker.OnLibraryChanged += LockChanged;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+
+        try
+        {
+            _libraries = await Mediator.Send(new GetConfiguredLibraries(), _cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // ignore
+        }
+    }
+
+    private void LockChanged(object sender, EventArgs e) => InvokeAsync(StateHasChanged);
+}

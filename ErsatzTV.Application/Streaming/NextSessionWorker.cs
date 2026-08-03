@@ -47,19 +47,21 @@ public class NextSessionWorker(
         }
     }
 
-    public async Task Cancel(CancellationToken cancellationToken)
+    public Task Cancel(CancellationToken cancellationToken)
     {
         logger.LogInformation("API termination request for HLS session for channel {Channel}", _channelNumber);
 
-        await _slim.WaitAsync(cancellationToken);
+        // Do not wait on _slim — waiting here can deadlock Stop if work holds the lock.
         try
         {
-            await _cancellationTokenSource.CancelAsync();
+            _cancellationTokenSource?.Cancel();
         }
-        finally
+        catch (ObjectDisposedException)
         {
-            _slim.Release();
+            // already torn down
         }
+
+        return Task.CompletedTask;
     }
 
     public void Touch(Option<string> fileName)
@@ -78,6 +80,18 @@ public class NextSessionWorker(
         DateTimeOffset filterBefore,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException();
+
+    public void PausePlayback()
+    {
+        // Next engine pause is not supported yet; clock pause is handled in DB.
+    }
+
+    public void ResumePlayback()
+    {
+        // Next engine resume is not supported yet; clock resume is handled in DB.
+    }
+
+    public bool IsPlaybackPaused => false;
 
     public void PlayoutUpdated()
     {

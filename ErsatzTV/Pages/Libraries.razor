@@ -1,4 +1,4 @@
-﻿@page "/media/libraries"
+@page "/media/libraries"
 @using ErsatzTV.Application.Emby
 @using ErsatzTV.Application.Jellyfin
 @using ErsatzTV.Application.Libraries
@@ -18,8 +18,7 @@
 <MudForm Style="max-height: 100%">
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Libraries</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Libraries"/>
             <MudTable Hover="true" Items="_libraries" Dense="true" Class="mb-5">
                 <ColGroup>
                     <MudHidden Breakpoint="Breakpoint.Xs">
@@ -115,8 +114,7 @@
                     </MudTd>
                 </RowTemplate>
             </MudTable>
-            <MudText Typo="Typo.h5" Class="mt-10 mb-2">External Collections</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="External Collections" Class="mt-10"/>
             @if (_externalCollections.Any())
             {
                 <MudTable Hover="true" Items="_externalCollections" Dense="true">

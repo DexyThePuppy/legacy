@@ -1,4 +1,4 @@
-﻿@page "/system/logs"
+@page "/system/logs"
 @using System.Globalization
 @using ErsatzTV.Application.Configuration
 @using ErsatzTV.Application.Logs
@@ -8,8 +8,7 @@
 <MudForm Style="max-height: 100%">
     <div class="d-flex flex-column" style="height: 100vh; overflow-x: auto">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-8">
-            <MudText Typo="Typo.h5" Class="mb-2">Logs</MudText>
-            <MudDivider Class="mb-6"/>
+            <PageHeader Title="Logs"/>
             <MudStack Row="true" Breakpoint="Breakpoint.SmAndDown" Class="form-field-stack gap-md-8 mb-5">
                 <div class="d-flex">
                     <MudText>Search</MudText>

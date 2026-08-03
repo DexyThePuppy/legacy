@@ -24,7 +24,7 @@ public class DeleteCollectionHandler(
         CancellationToken cancellationToken)
     {
         await using TvContext dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        Validation<BaseError, Collection> validation = await CollectionMustExist(dbContext, request, cancellationToken);
+        Validation<BaseError, Collection> validation = await Validate(dbContext, request, cancellationToken);
         return await validation.Apply(c => DoDeletion(dbContext, c, cancellationToken));
     }
 
@@ -44,11 +44,28 @@ public class DeleteCollectionHandler(
         return Unit.Default;
     }
 
-    private static Task<Validation<BaseError, Collection>> CollectionMustExist(
+    private static async Task<Validation<BaseError, Collection>> Validate(
         TvContext dbContext,
         DeleteCollection request,
-        CancellationToken cancellationToken) =>
-        dbContext.Collections
-            .SelectOneAsync(c => c.Id, c => c.Id == request.CollectionId, cancellationToken)
-            .Map(o => o.ToValidation<BaseError>($"Collection {request.CollectionId} does not exist."));
+        CancellationToken cancellationToken)
+    {
+        Option<Collection> maybeCollection = await dbContext.Collections
+            .SelectOneAsync(c => c.Id, c => c.Id == request.CollectionId, cancellationToken);
+
+        foreach (Collection collection in maybeCollection)
+        {
+            int scheduleItemCount = await dbContext.ProgramScheduleItems
+                .CountAsync(i => i.CollectionId == collection.Id, cancellationToken);
+
+            if (scheduleItemCount > 0)
+            {
+                return BaseError.New(
+                    $"Collection '{collection.Name}' is used by {scheduleItemCount} schedule item(s). Remove those schedule items before deleting the collection.");
+            }
+
+            return collection;
+        }
+
+        return BaseError.New($"Collection {request.CollectionId} does not exist.");
+    }
 }

@@ -68,7 +68,7 @@ public class Program
         {
             Environment.SetEnvironmentVariable("DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
             await CreateHostBuilder(args).Build().RunAsync();
-            return 0;
+            return Environment.ExitCode;
         }
         catch (Exception ex)
         {

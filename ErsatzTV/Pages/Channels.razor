@@ -467,7 +467,9 @@
         {
             { "StreamUri", uri.ToString() },
             { "RawPreviewUri", GetChannelPreviewUrl(channel.Number, fps: 30) },
-            { "ChannelNumber", channel.Number }
+            { "ChannelNumber", channel.Number },
+            { "ChannelId", channel.Id },
+            { "CanControl", channel.IsEnabled && channel.PlayoutCount > 0 }
         };
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraLarge };
         await Dialog.ShowAsync<ChannelPreviewDialog>("Channel Preview", parameters, options);

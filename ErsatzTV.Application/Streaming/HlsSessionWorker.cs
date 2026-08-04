@@ -215,7 +215,22 @@ public class HlsSessionWorker : IHlsSessionWorker
         return None;
     }
 
-    public void PlayoutUpdated() => _state = HlsSessionState.PlayoutUpdated;
+    public void PlayoutUpdated()
+    {
+        _state = HlsSessionState.PlayoutUpdated;
+
+        // Interrupt the current item immediately so skip/seek can start the new position.
+        // Without this, the old encode keeps running and the next item often starts against
+        // a cancelled/empty input (e.g. yt-dlp HTTP) → "Stream specifier ':0' matches no streams".
+        try
+        {
+            _itemCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // ignore
+        }
+    }
 
     public HlsSessionModel GetModel() => new(_channelNumber, _state.ToString(), _transcodedUntil, _lastAccess);
 
@@ -489,6 +504,14 @@ public class HlsSessionWorker : IHlsSessionWorker
     {
         try
         {
+            if (_state is HlsSessionState.PlayoutUpdated)
+            {
+                _logger.LogDebug(
+                    "HLS session applying playout update as seek-and-work-ahead for channel {Channel}",
+                    _channelNumber);
+                _state = HlsSessionState.SeekAndWorkAhead;
+            }
+
             bool wasSeekAndWorkAhead = _state is HlsSessionState.SeekAndWorkAhead;
 
             if (!realtime)
@@ -721,6 +744,15 @@ public class HlsSessionWorker : IHlsSessionWorker
                     {
                         _logger.LogInformation("HLS encode paused for channel {Channel}", _channelNumber);
                         return false;
+                    }
+
+                    // Keep the HLS session alive when skip/seek interrupted this encode.
+                    if (_state is HlsSessionState.PlayoutUpdated)
+                    {
+                        _logger.LogInformation(
+                            "HLS encode interrupted to apply playout update for channel {Channel}",
+                            _channelNumber);
+                        return true;
                     }
 
                     _logger.LogInformation("Terminating HLS session for channel {Channel}", _channelNumber);

@@ -1,10 +1,12 @@
 using System.CommandLine;
 using System.Diagnostics;
+using ErsatzTV.Infrastructure.Data;
 using ErsatzTV.Scanner.Application.Emby;
 using ErsatzTV.Scanner.Application.FFmpeg;
 using ErsatzTV.Scanner.Application.Jellyfin;
 using ErsatzTV.Scanner.Application.MediaSources;
 using ErsatzTV.Scanner.Application.Plex;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -31,19 +33,54 @@ public class Worker : BackgroundService
     {
         //HibernatingRhinos.Profiler.Appender.EntityFramework.EntityFrameworkProfiler.Initialize();
 
+        // need to strip program name (head) from command line args
+        string[] arguments = Environment.GetCommandLineArgs().Skip(1).ToArray();
+
+        // Fast path for coldstart: prove host/DI/DB work without FFmpeg capability refresh.
+        if (arguments.Length > 0 &&
+            string.Equals(arguments[0], "verify", StringComparison.OrdinalIgnoreCase))
+        {
+            Environment.ExitCode = await VerifyBackendAsync(stoppingToken) ? 0 : 1;
+            _appLifetime.StopApplication();
+            return;
+        }
+
         using IServiceScope scope = _serviceScopeFactory.CreateScope();
         IMediator mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         await mediator.Send(new RefreshFFmpegCapabilities(), stoppingToken);
 
         RootCommand rootCommand = ConfigureCommandLine();
 
-        // need to strip program name (head) from command line args
-        string[] arguments = Environment.GetCommandLineArgs().Skip(1).ToArray();
-
         ParseResult parseResult = rootCommand.Parse(arguments);
         await parseResult.InvokeAsync(cancellationToken: stoppingToken);
 
         _appLifetime.StopApplication();
+    }
+
+    private async Task<bool> VerifyBackendAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using IServiceScope scope = _serviceScopeFactory.CreateScope();
+            IDbContextFactory<TvContext> dbContextFactory =
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<TvContext>>();
+
+            await using TvContext dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            if (!await dbContext.Database.CanConnectAsync(cancellationToken))
+            {
+                _logger.LogError("Scanner verify failed: cannot connect to database");
+                return false;
+            }
+
+            _ = await dbContext.ConfigElements.AsNoTracking().CountAsync(cancellationToken);
+            _logger.LogInformation("Scanner verify succeeded");
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Scanner verify failed");
+            return false;
+        }
     }
 
     private RootCommand ConfigureCommandLine()
@@ -394,7 +431,17 @@ public class Worker : BackgroundService
             }
         });
 
+        var verifyCommand = new Command("verify", "Verify scanner host, DI, and database connectivity");
+        verifyCommand.SetAction(async (_, token) =>
+        {
+            if (!await VerifyBackendAsync(token))
+            {
+                Environment.ExitCode = 1;
+            }
+        });
+
         var rootCommand = new RootCommand();
+        rootCommand.Subcommands.Add(verifyCommand);
         rootCommand.Subcommands.Add(scanLocalCommand);
         rootCommand.Subcommands.Add(scanPlexCommand);
         rootCommand.Subcommands.Add(scanPlexCollectionsCommand);

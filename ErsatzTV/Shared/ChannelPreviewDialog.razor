@@ -1,4 +1,7 @@
-﻿@inject IJSRuntime JsRuntime
+﻿@using System.Globalization
+@using ErsatzTV.Application.Channels
+@inject IJSRuntime JsRuntime
+@inject IMediator Mediator
 @implements IDisposable
 
 <div>
@@ -38,6 +41,33 @@
             </div>
         </DialogContent>
         <DialogActions>
+            <div class="d-flex align-center flex-grow-1" style="min-width: 0; gap: 4px;">
+                <MudIconButton Icon="@Icons.Material.Filled.SkipPrevious"
+                               Disabled="@(!CanScrub)"
+                               Size="Size.Small"
+                               OnClick="@(_ => SkipPlaybackAsync(ChannelPlaybackSkipDirection.Previous))"/>
+                <MudIconButton Icon="@(_isPaused ? Icons.Material.Filled.PlayArrow : Icons.Material.Filled.Pause)"
+                               Disabled="@(!CanTogglePause)"
+                               Size="Size.Small"
+                               OnClick="@(_ => TogglePauseAsync())"/>
+                <MudIconButton Icon="@Icons.Material.Filled.SkipNext"
+                               Disabled="@(!CanScrub)"
+                               Size="Size.Small"
+                               OnClick="@(_ => SkipPlaybackAsync(ChannelPlaybackSkipDirection.Next))"/>
+                <MudSlider T="double"
+                           Min="0"
+                           Max="@_scrubMax"
+                           Step="0.5"
+                           Value="@_scrubValue"
+                           ValueChanged="@(v => SeekPlaybackAsync(v))"
+                           Disabled="@(!CanScrub)"
+                           Immediate="false"
+                           Class="mx-2 flex-grow-1"
+                           Style="max-width: 360px;"/>
+                <MudText Typo="Typo.caption" Style="opacity: 0.8; font-variant-numeric: tabular-nums; white-space: nowrap;">
+                    @_clockLabel
+                </MudText>
+            </div>
             <MudButton Color="Color.Primary" OnClick="Close">Close</MudButton>
         </DialogActions>
     </MudDialog>
@@ -57,9 +87,24 @@
     [Parameter]
     public string ChannelNumber { get; set; }
 
-    private string OverlaysUri { get; set; }
+    [Parameter]
+    public int ChannelId { get; set; }
 
-    protected override Task OnParametersSetAsync()
+    [Parameter]
+    public bool CanControl { get; set; }
+
+    private string OverlaysUri { get; set; }
+    private ChannelNowPlayingViewModel _nowPlaying;
+    private System.Threading.Timer _refreshTimer;
+    private System.Threading.Timer _clockTimer;
+    private bool _isPaused;
+    private double _scrubMax = 1;
+    private double _scrubValue;
+    private string _clockLabel = "00:00/00:00";
+    private bool CanTogglePause => CanControl;
+    private bool CanScrub => CanControl && _nowPlaying is not null;
+
+    protected override async Task OnParametersSetAsync()
     {
         if (!string.IsNullOrWhiteSpace(ChannelNumber))
         {
@@ -70,7 +115,10 @@
             OverlaysUri = null;
         }
 
-        return Task.CompletedTask;
+        if (ChannelId > 0)
+        {
+            await RefreshNowPlayingAsync(CancellationToken.None);
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -85,15 +133,141 @@
             {
                 // ignored
             }
+
+            if (CanControl && ChannelId > 0)
+            {
+                _refreshTimer = new System.Threading.Timer(
+                    async _ => await InvokeAsync(async () =>
+                    {
+                        await RefreshNowPlayingAsync(CancellationToken.None);
+                        StateHasChanged();
+                    }),
+                    null,
+                    TimeSpan.FromSeconds(2),
+                    TimeSpan.FromSeconds(2));
+
+                _clockTimer = new System.Threading.Timer(
+                    async _ => await InvokeAsync(() =>
+                    {
+                        UpdateScrubState();
+                        StateHasChanged();
+                    }),
+                    null,
+                    TimeSpan.FromSeconds(1),
+                    TimeSpan.FromSeconds(1));
+            }
         }
 
         await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task RefreshNowPlayingAsync(CancellationToken cancellationToken)
+    {
+        if (ChannelId <= 0)
+        {
+            return;
+        }
+
+        Dictionary<int, ChannelNowPlayingViewModel> next =
+            await Mediator.Send(new GetChannelsNowPlaying([ChannelId]), cancellationToken);
+        _nowPlaying = next.TryGetValue(ChannelId, out ChannelNowPlayingViewModel info) ? info : null;
+        UpdateScrubState();
+    }
+
+    private void UpdateScrubState()
+    {
+        if (_nowPlaying is null)
+        {
+            _isPaused = false;
+            _scrubMax = 1;
+            _scrubValue = 0;
+            _clockLabel = "00:00/00:00";
+            return;
+        }
+
+        TimeSpan duration = GetDuration(_nowPlaying);
+        TimeSpan elapsed = GetElapsed(_nowPlaying);
+        _isPaused = _nowPlaying.IsPaused;
+        _scrubMax = Math.Max(0.1, duration.TotalSeconds);
+        _scrubValue = elapsed.TotalSeconds;
+        _clockLabel = $"{FormatClock(elapsed)}/{FormatClock(duration)}";
+    }
+
+    private async Task TogglePauseAsync()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        if (_isPaused)
+        {
+            await Mediator.Send(new ResumeChannelPlayback(ChannelId), cts.Token);
+        }
+        else
+        {
+            await Mediator.Send(new PauseChannelPlayback(ChannelId), cts.Token);
+        }
+
+        await RefreshNowPlayingAsync(cts.Token);
+    }
+
+    private async Task SkipPlaybackAsync(ChannelPlaybackSkipDirection direction)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await Mediator.Send(new SkipChannelPlayback(ChannelId, direction), cts.Token);
+        await RefreshNowPlayingAsync(cts.Token);
+    }
+
+    private async Task SeekPlaybackAsync(double seconds)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await Mediator.Send(
+            new SeekChannelPlayback(ChannelId, TimeSpan.FromSeconds(Math.Max(0, seconds))),
+            cts.Token);
+        await RefreshNowPlayingAsync(cts.Token);
+    }
+
+    private static TimeSpan GetDuration(ChannelNowPlayingViewModel nowPlaying)
+    {
+        TimeSpan duration = nowPlaying.Finish - nowPlaying.Start;
+        return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
+    }
+
+    private static TimeSpan GetElapsed(ChannelNowPlayingViewModel nowPlaying)
+    {
+        DateTimeOffset effective = nowPlaying.IsPaused
+            ? nowPlaying.EffectiveNow
+            : DateTimeOffset.Now - nowPlaying.ClockSkew;
+
+        TimeSpan duration = GetDuration(nowPlaying);
+        TimeSpan elapsed = effective - nowPlaying.Start;
+        if (elapsed < TimeSpan.Zero)
+        {
+            elapsed = TimeSpan.Zero;
+        }
+
+        if (elapsed > duration)
+        {
+            elapsed = duration;
+        }
+
+        return elapsed;
+    }
+
+    private static string FormatClock(TimeSpan value)
+    {
+        if (value.TotalHours >= 1)
+        {
+            return string.Format(CultureInfo.InvariantCulture, @"{0:h\:mm\:ss}", value);
+        }
+
+        return string.Format(CultureInfo.InvariantCulture, @"{0:mm\:ss}", value);
     }
 
     private void Close() => MudDialog.Close(DialogResult.Ok(true));
 
     public void Dispose()
     {
+        _refreshTimer?.Dispose();
+        _clockTimer?.Dispose();
+
         try
         {
             JsRuntime.InvokeVoidAsync("stopPreview");

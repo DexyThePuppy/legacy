@@ -497,7 +497,12 @@ public class Startup
 
         services.Configure<TraktConfiguration>(Configuration.GetSection("Trakt"));
 
-        services.AddResponseCompression(options => { options.EnableForHttps = true; });
+        // Response compression breaks dotnet-watch / VS browser-refresh script injection in Development
+        // (Content-Encoding: br), which can leave the Blazor UI stuck after reconnects.
+        if (!CurrentEnvironment.IsDevelopment())
+        {
+            services.AddResponseCompression(options => { options.EnableForHttps = true; });
+        }
 
         CustomServices(services);
     }
@@ -623,7 +628,10 @@ public class Startup
                 ServeUnknownFileTypes = true
             });
 
-        app.UseResponseCompression();
+        if (!env.IsDevelopment())
+        {
+            app.UseResponseCompression();
+        }
 
         app.Use(async (context, next) =>
         {
@@ -874,6 +882,7 @@ public class Startup
         services.AddHostedService<PlatformSettingsService>();
         services.AddHostedService<RebuildSearchIndexService>();
         services.AddHostedService<RunHealthChecksService>();
+        services.AddHostedService<ColdStartVerificationService>();
 
         // background services
 #if !DEBUG_NO_SYNC

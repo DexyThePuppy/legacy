@@ -1,15 +1,17 @@
 # Rebuild and restart ErsatzTV on source changes (dotnet watch).
 # Uses the same ports as the published build: UI 8410, streaming 8409.
 #
+# Hot reload is off by default — Blazor Server circuits are more reliable with full restart.
+#
 # Prerequisites:
 #   - Stop .etv-publish\ErsatzTV.exe first (same ports + singleton mutex on config folder).
 #
 # Usage:
 #   .\scripts\dev-watch.ps1
-#   .\scripts\dev-watch.ps1 -NoHotReload   # always full restart (more reliable for Blazor)
+#   .\scripts\dev-watch.ps1 -HotReload   # enable hot reload (may break Blazor UI after edits)
 
 param(
-    [switch]$NoHotReload
+    [switch]$HotReload
 )
 
 $ErrorActionPreference = "Stop"
@@ -41,7 +43,12 @@ if (Get-Process -Name ErsatzTV -ErrorAction SilentlyContinue) {
 }
 
 Write-Host "ErsatzTV dev watch - UI http://localhost:8410, streaming :8409" -ForegroundColor Cyan
-Write-Host "Ctrl+C to stop. Saves to .razor/.cs trigger rebuild/restart." -ForegroundColor DarkGray
+if ($HotReload) {
+    Write-Host "Hot reload ON. Blazor may need a hard refresh after some edits." -ForegroundColor DarkYellow
+} else {
+    Write-Host "Hot reload OFF (default). Saves trigger full rebuild/restart." -ForegroundColor DarkGray
+}
+Write-Host "Ctrl+C to stop." -ForegroundColor DarkGray
 Write-Host ""
 
 $watchArgs = @(
@@ -50,7 +57,7 @@ $watchArgs = @(
     "--launch-profile", "Watch"
 )
 
-if ($NoHotReload) {
+if (-not $HotReload) {
     $watchArgs += "--no-hot-reload"
 }
 

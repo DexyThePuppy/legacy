@@ -76,6 +76,26 @@
         <ProjectReference Include="..\ErsatzTV.Scanner\ErsatzTV.Scanner.csproj" />
     </ItemGroup>
 
+    <!--
+      ProjectReference copies the scanner apphost/dll but can omit shared-framework package
+      assemblies the child process needs at runtime. Copy only files that are missing from the
+      main output so we never downgrade packages the web host already resolved (e.g. Serilog).
+    -->
+    <Target Name="CopyScannerRuntimeDependencies" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true'">
+        <PropertyGroup>
+            <_ScannerOutputDir>$(MSBuildThisFileDirectory)..\ErsatzTV.Scanner\bin\$(Configuration)\$(TargetFramework)\</_ScannerOutputDir>
+        </PropertyGroup>
+        <ItemGroup Condition="Exists('$(_ScannerOutputDir)ErsatzTV.Scanner.dll')">
+            <_ScannerRuntimeFiles Include="$(_ScannerOutputDir)**\*.*"
+                                  Exclude="$(_ScannerOutputDir)**\*.pdb;$(_ScannerOutputDir)**\*.xml" />
+            <_ScannerRuntimeFilesToCopy Include="@(_ScannerRuntimeFiles)"
+                                        Condition="!Exists('$(TargetDir)%(RecursiveDir)%(Filename)%(Extension)')" />
+        </ItemGroup>
+        <Copy SourceFiles="@(_ScannerRuntimeFilesToCopy)"
+              DestinationFiles="@(_ScannerRuntimeFilesToCopy->'$(TargetDir)%(RecursiveDir)%(Filename)%(Extension)')"
+              Condition="'@(_ScannerRuntimeFilesToCopy)' != ''" />
+    </Target>
+
     <ItemGroup>
         <EmbeddedResource Include="Resources\Fonts\Sen.ttf" />
         <EmbeddedResource Include="Resources\_background.png" />

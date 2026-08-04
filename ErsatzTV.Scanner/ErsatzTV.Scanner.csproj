@@ -11,6 +11,8 @@
         <AnalysisLevel>latest-Recommended</AnalysisLevel>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <NoWarn>VSTHRD200,CA1873</NoWarn>
+        <!-- Ensure lockfile assemblies are present next to the scanner apphost for process launch. -->
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     </PropertyGroup>
 
     <ItemGroup>

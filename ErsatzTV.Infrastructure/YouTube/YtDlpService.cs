@@ -64,6 +64,7 @@ public class YtDlpService(
         }
 
         string ytDlpPath = maybeYtDlp.ValueUnsafe();
+        YtDlpSettings settings = await GetSettings(cancellationToken);
         bool isUrl = IsUrl(input);
 
         try
@@ -73,6 +74,7 @@ public class YtDlpService(
                 Either<BaseError, string> jsonResult = await RunYtDlpJson(
                     ytDlpPath,
                     NormalizeUrl(input),
+                    settings.ExtraArgs,
                     cancellationToken);
                 foreach (BaseError error in jsonResult.LeftToSeq())
                 {
@@ -87,8 +89,10 @@ public class YtDlpService(
             string channelTarget =
                 $"https://www.youtube.com/results?search_query={Uri.EscapeDataString(input)}&sp=EgIQAg%253D%253D";
 
-            Task<Either<BaseError, string>> videoJsonTask = RunYtDlpJson(ytDlpPath, videoTarget, cancellationToken);
-            Task<Either<BaseError, string>> channelJsonTask = RunYtDlpJson(ytDlpPath, channelTarget, cancellationToken);
+            Task<Either<BaseError, string>> videoJsonTask =
+                RunYtDlpJson(ytDlpPath, videoTarget, settings.ExtraArgs, cancellationToken);
+            Task<Either<BaseError, string>> channelJsonTask =
+                RunYtDlpJson(ytDlpPath, channelTarget, settings.ExtraArgs, cancellationToken);
             await Task.WhenAll(videoJsonTask, channelJsonTask);
 
             Either<BaseError, string> videoJson = await videoJsonTask;
@@ -163,6 +167,7 @@ public class YtDlpService(
     private async Task<Either<BaseError, string>> RunYtDlpJson(
         string ytDlpPath,
         string target,
+        string extraArgs,
         CancellationToken cancellationToken)
     {
         var startInfo = new ProcessStartInfo
@@ -179,6 +184,13 @@ public class YtDlpService(
         startInfo.ArgumentList.Add("--no-warnings");
         startInfo.ArgumentList.Add("--extractor-args");
         startInfo.ArgumentList.Add("youtubetab:approximate_date");
+
+        using YtDlpPreparedExtraArgs prepared = YtDlpSettings.PrepareExtraArgs(extraArgs);
+        foreach (string arg in prepared.Args)
+        {
+            startInfo.ArgumentList.Add(arg);
+        }
+
         startInfo.ArgumentList.Add(target);
 
         await AddPathEnvironment(startInfo, cancellationToken);
@@ -245,7 +257,8 @@ public class YtDlpService(
         startInfo.ArgumentList.Add("-o");
         startInfo.ArgumentList.Add(Path.Combine(FileSystemLayout.YouTubeCacheFolder, "%(id)s.%(ext)s"));
 
-        foreach (string arg in YtDlpSettings.SplitExtraArgs(settings.ExtraArgs))
+        using YtDlpPreparedExtraArgs prepared = YtDlpSettings.PrepareExtraArgs(settings.ExtraArgs);
+        foreach (string arg in prepared.Args)
         {
             startInfo.ArgumentList.Add(arg);
         }
@@ -313,7 +326,7 @@ public class YtDlpService(
         foreach (string extension in CachedExtensions)
         {
             string path = Path.Combine(FileSystemLayout.YouTubeCacheFolder, $"{videoId}{extension}");
-            if (File.Exists(path))
+            if (File.Exists(path) && new FileInfo(path).Length > 0)
             {
                 return path;
             }
